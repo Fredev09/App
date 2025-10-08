@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Hyperlink?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.AnchorPane?>
+
+<AnchorPane prefHeight="400.0" prefWidth="380" styleClass="modern-form"
+            stylesheets="@styles.css"
+            xmlns="http://javafx.com/javafx/25"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="Controlador.ControladorLogin">
+
+    <!-- Título -->
+    <Label layoutX="30" layoutY="20" prefWidth="320" styleClass="form-title" text="Iniciar sesión" />
+
+    <!-- Correo electrónico -->
+    <Label layoutX="30" layoutY="70" styleClass="input-label" text="Correo electrónico" />
+    <TextField fx:id="txtCorreo" layoutX="30" layoutY="95" prefHeight="48" prefWidth="320"
+               promptText="Ingrese su correo" styleClass="form-input" />
+
+    <!-- Contraseña -->
+    <Label layoutX="30" layoutY="155" styleClass="input-label" text="Contraseña" />
+    <PasswordField fx:id="txtContrasena" layoutX="30" layoutY="180" prefHeight="48" prefWidth="320"
+                   promptText="Ingrese su contraseña" styleClass="form-input" />
+    <TextField fx:id="txtContrasenaVisible" layoutX="30" layoutY="180" prefHeight="48" prefWidth="320"
+               styleClass="form-input" visible="false" managed="false" />
+    <Button fx:id="btnMostrarContrasena" layoutX="310" layoutY="185" prefHeight="32" prefWidth="40"
+            styleClass="password-toggle" text="👁" />
+
+    <!-- Botón de iniciar sesión -->
+    <Button fx:id="btnLogin" layoutX="30" layoutY="250" prefHeight="50" prefWidth="320"
+            styleClass="submit-button" text="Iniciar sesión" />
+
+    <!-- Separador -->
+    <Separator layoutX="30" layoutY="342" prefWidth="320" styleClass="form-separator" />
+
+    <!-- Footer -->
+    <Label layoutX="65" layoutY="360" styleClass="footer-text" text="¿No tienes cuenta?" />
+    <Hyperlink fx:id="linkCrearCuenta" layoutX="201" layoutY="357" prefHeight="26" prefWidth="88"
+               styleClass="login-link" text="Crear cuenta" />
+
+    <Hyperlink fx:id="linkOlvideContrasena" layoutX="106" layoutY="307" styleClass="login-link"
+               text="¿Olvidaste tu contraseña?" />
+
+</AnchorPane>

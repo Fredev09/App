@@ -1,0 +1,134 @@
+/* Variables de colores */
+.root {
+    -primary: #3b82f6;
+    -primary-dark: #2563eb;
+    -primary-light: rgba(59, 130, 246, 0.1);
+    -success: #10b981;
+    -text-main: #1f2937;
+    -text-secondary: #6b7280;
+    -text-light: #9ca3af;
+    -bg-input: #f9fafb;
+    -border-light: #e5e7eb;
+    -border-focus: #3b82f6;
+}
+
+/* Contenedor principal */
+.modern-form {
+    -fx-background-color: white;
+    -fx-background-radius: 16px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.08), 15, 0, 0, 4),
+                dropshadow(gaussian, rgba(0, 0, 0, 0.03), 6, 0, 0, 2);
+    -fx-border-color: #f3f4f6;
+    -fx-border-width: 1px;
+    -fx-border-radius: 16px;
+}
+
+/* Título del formulario */
+.form-title {
+    -fx-font-size: 26px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -text-main;
+    -fx-alignment: center;
+}
+
+/* Labels de los inputs */
+.input-label {
+    -fx-font-size: 14px;
+    -fx-font-weight: 600;
+    -fx-text-fill: -text-main;
+}
+
+/* Campos de texto */
+.form-input {
+    -fx-font-size: 15px;
+    -fx-border-color: -border-light;
+    -fx-border-radius: 12px;
+    -fx-background-color: -bg-input;
+    -fx-text-fill: -text-main;
+    -fx-background-radius: 12px;
+    -fx-font-family: "Segoe UI", system-ui, sans-serif;
+    -fx-padding: 0 16px;
+}
+
+.form-input:focused {
+    -fx-border-color: -border-focus;
+    -fx-background-color: white;
+    -fx-effect: dropshadow(gaussian, -primary-light, 10, 0.4, 0, 0);
+    -fx-border-width: 2px;
+}
+
+.form-input:hover {
+    -fx-border-color: #d1d5db;
+    -fx-background-color: white;
+}
+
+/* Botón de toggle password */
+.password-toggle {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: -text-secondary;
+    -fx-font-size: 16px;
+    -fx-cursor: hand;
+    -fx-background-radius: 8px;
+}
+
+.password-toggle:hover {
+    -fx-background-color: #f3f4f6;
+    -fx-text-fill: -text-main;
+}
+
+.password-toggle:pressed {
+    -fx-background-color: #e5e7eb;
+}
+
+/* Botón de submit */
+.submit-button {
+    -fx-background-color: -primary;
+    -fx-text-fill: white;
+    -fx-border-radius: 12px;
+    -fx-background-radius: 12px;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+    -fx-font-family: "Segoe UI", system-ui, sans-serif;
+    -fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.3), 8, 0, 0, 2);
+}
+
+.submit-button:hover {
+    -fx-background-color: -primary-dark;
+    -fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.4), 12, 0, 0, 4);
+    -fx-translate-y: -1px;
+}
+
+.submit-button:pressed {
+    -fx-background-color: #1d4ed8;
+    -fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.2), 4, 0, 0, 1);
+    -fx-translate-y: 0px;
+}
+
+/* Separador */
+.form-separator {
+    -fx-padding: 0;
+}
+
+/* Footer */
+.footer-text {
+    -fx-font-size: 14px;
+    -fx-text-fill: -text-secondary;
+}
+
+.login-link {
+    -fx-border-color: transparent;
+    -fx-background-color: transparent;
+    -fx-text-fill: -primary;
+    -fx-font-weight: 600;
+    -fx-font-size: 14px;
+    -fx-cursor: hand;
+    -fx-underline: false;
+}
+
+.login-link:hover {
+    -fx-text-fill: -primary-dark;
+    -fx-background-color: -primary-light;
+    -fx-underline: false;
+}
