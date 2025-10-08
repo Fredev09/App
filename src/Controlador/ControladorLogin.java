@@ -4,6 +4,7 @@
  */
 package Controlador;
 
+import Modelo.Usuario;
 import java.io.IOException;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -68,6 +69,8 @@ public class ControladorLogin {
      */
     @FXML
     public void initialize() {
+        //Inicializar BD
+        ControladorBD.initializeBD();
         // Ocultar el TextField visible de la contraseña inicialmente
         txtContrasenaVisible.setManaged(false);
         txtContrasenaVisible.setVisible(false);
@@ -110,24 +113,48 @@ public class ControladorLogin {
      * o un mensaje de información con los datos ingresados.
      */
     private void iniciarSesion() {
-        String correo = txtCorreo.getText();
+        // obtener texto de los campos
+        String correo = txtCorreo.getText().trim();
         String contrasena = txtContrasena.getText();
 
-        // Validar si los campos están vacíos
+        // Validar campos vacíos
         if (correo.isEmpty() || contrasena.isEmpty()) {
-            Alert alerta = new Alert(Alert.AlertType.WARNING);
-            alerta.setTitle("Campos obligatorios");
-            alerta.setHeaderText(null);
-            alerta.setContentText("Por favor, complete todos los campos.");
-            alerta.showAndWait();
+            mostrarAlerta("Campos obligatorios", "Por favor, complete todos los campos.", Alert.AlertType.WARNING);
             return;
         }
 
-        // Mostrar información de intento de inicio de sesión
-        Alert alerta = new Alert(Alert.AlertType.INFORMATION);
-        alerta.setTitle("Iniciar sesión");
+        // Validar formato de correo basico
+        if (!correo.contains("@")) {
+            mostrarAlerta("Correo inválido", "Por favor, ingrese un correo electrónico válido.", Alert.AlertType.WARNING);
+            return;
+        }
+
+        // Validar credenciales en la BD
+        Usuario usuario = ControladorBD.validarLogin(correo, contrasena);
+        
+        if (usuario != null) {
+            // Login exitoso
+            mostrarAlerta("Inicio de sesión exitoso", 
+                "Bienvenido " + usuario.getNombreCompleto() + "!\nTipo: " + usuario.getTipoUsuario(), 
+                Alert.AlertType.INFORMATION);
+            
+            // Aquí puedes redirigir a la ventana principal
+            // irVentanaPrincipal(usuario);
+            
+        } else {
+            // Login fallido
+            mostrarAlerta("Error de inicio de sesión", 
+                "Correo o contraseña incorrectos. Por favor, intente nuevamente.", 
+                Alert.AlertType.ERROR);
+        }
+    }
+
+    //Codigo reutilizable para mostrar alertas
+    private void mostrarAlerta(String titulo, String mensaje, Alert.AlertType tipo) {
+        Alert alerta = new Alert(tipo);
+        alerta.setTitle(titulo);
         alerta.setHeaderText(null);
-        alerta.setContentText("Intentando iniciar sesión con: " + correo);
+        alerta.setContentText(mensaje);
         alerta.showAndWait();
     }
 

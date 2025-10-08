@@ -4,11 +4,13 @@
  */
 package Controlador;
 
+import Modelo.Usuario;
 import java.io.IOException;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Hyperlink;
@@ -58,6 +60,9 @@ public class ControladorRegistro {
 
     @FXML
     public void initialize() {
+        //Inicializar BD
+        ControladorBD.initializeBD();
+
         // Inicializar ComboBox
         cmbTipoUsuario.getItems().addAll("Emprendedor", "Fundación");
 
@@ -81,12 +86,20 @@ public class ControladorRegistro {
         try {
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/Vista/Login.fxml"));
             Parent root = loader.load();
-            Stage stage = (Stage) btnRegistrar.getScene().getWindow();
+
+            // Obtener el Stage de forma segura
+            Stage currentStage = (Stage) btnRegistrar.getScene().getWindow();
+
+            // Crear nuevo Stage si el anterior es null
+            Stage stage = currentStage != null ? currentStage : new Stage();
+
             stage.setScene(new Scene(root));
             stage.setTitle("Iniciar sesión");
             stage.show();
+
         } catch (IOException ex) {
             ex.printStackTrace();
+            mostrarAlerta("Error", "No se pudo cargar la ventana de login.", Alert.AlertType.ERROR);
         }
     }
 
@@ -112,16 +125,50 @@ public class ControladorRegistro {
         String tipo = cmbTipoUsuario.getValue();
 
         if (nombre.isEmpty() || correo.isEmpty() || contrasena.isEmpty() || confirmar.isEmpty() || tipo == null) {
-            System.out.println("Todos los campos son obligatorios");
+            mostrarAlerta("Llene todos los campos", "Debe llenar todos los campos ",
+                    Alert.AlertType.WARNING);
+            return;
+        }
+
+        if (!correo.contains("@")) {
+            mostrarAlerta("Correo inválido", "Por favor, ingrese un correo electrónico válido.", Alert.AlertType.WARNING);
+            return;
+        }
+        if (contrasena.length() < 6) {
+            mostrarAlerta("Contraseña muy corta", "La contraseña debe tener al menos 6 caracteres.", Alert.AlertType.WARNING);
+            return;
+        }
+        if (ControladorBD.existeCorreo(correo)) {
+            mostrarAlerta("Correo ya registrado", "Este correo electrónico ya está en uso. Por favor, use otro.", Alert.AlertType.WARNING);
             return;
         }
 
         if (!contrasena.equals(confirmar)) {
-            System.out.println("Las contraseñas no coinciden");
+            mostrarAlerta("Contraseñas no coinciden", "Las contraseñas no coinciden", Alert.AlertType.WARNING);
             return;
         }
+        Usuario usuario = new Usuario(nombre, correo, contrasena, tipo);
+        boolean registrar = ControladorBD.registrarUsuario(usuario);
 
+        if (registrar) {
+            mostrarAlerta("Registro exitoso",
+                    "¡Cuenta creada exitamente!\nBienvenido " + nombre,
+                    Alert.AlertType.INFORMATION);
+            irLogin();
+        } else {
+            mostrarAlerta("Error en registro",
+                    "No se pudo crear la cuenta. Intente nuevamente.",
+                    Alert.AlertType.ERROR);
+        }
         irLogin();
-        System.out.println("Usuario registrado: " + nombre + " (" + tipo + ")");
     }
+
+    private void mostrarAlerta(String titulo, String mensaje, Alert.AlertType tipo) {
+        Alert alerta = new Alert(tipo);
+        alerta.setTitle(titulo);
+        alerta.setHeaderText(null);
+        alerta.setContentText(mensaje);
+        alerta.showAndWait();
+    }
+
 }
