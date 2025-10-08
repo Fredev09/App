@@ -113,41 +113,58 @@ public class ControladorLogin {
      * o un mensaje de información con los datos ingresados.
      */
     private void iniciarSesion() {
-        // obtener texto de los campos
-        String correo = txtCorreo.getText().trim();
-        String contrasena = txtContrasena.getText();
+    // obtener texto de los campos
+    String correo = txtCorreo.getText().trim();
+    String contrasena = txtContrasena.getText();
 
-        // Validar campos vacíos
-        if (correo.isEmpty() || contrasena.isEmpty()) {
-            mostrarAlerta("Campos obligatorios", "Por favor, complete todos los campos.", Alert.AlertType.WARNING);
-            return;
-        }
-
-        // Validar formato de correo basico
-        if (!correo.contains("@")) {
-            mostrarAlerta("Correo inválido", "Por favor, ingrese un correo electrónico válido.", Alert.AlertType.WARNING);
-            return;
-        }
-
-        // Validar credenciales en la BD
-        Usuario usuario = ControladorBD.validarLogin(correo, contrasena);
-        
-        if (usuario != null) {
-            // Login exitoso
-            mostrarAlerta("Inicio de sesión exitoso", 
-                "Bienvenido " + usuario.getNombreCompleto() + "!\nTipo: " + usuario.getTipoUsuario(), 
-                Alert.AlertType.INFORMATION);
-            
-            // Aquí puedes redirigir a la ventana principal
-            // irVentanaPrincipal(usuario);
-            
-        } else {
-            // Login fallido
-            mostrarAlerta("Error de inicio de sesión", 
-                "Correo o contraseña incorrectos. Por favor, intente nuevamente.", 
-                Alert.AlertType.ERROR);
-        }
+    // Validar campos vacíos
+    if (correo.isEmpty() || contrasena.isEmpty()) {
+        mostrarAlerta("Campos obligatorios", "Por favor, complete todos los campos.", Alert.AlertType.WARNING);
+        return;
     }
+
+    // Validar formato de correo basico
+    if (!correo.contains("@")) {
+        mostrarAlerta("Correo inválido", "Por favor, ingrese un correo electrónico válido.", Alert.AlertType.WARNING);
+        return;
+    }
+
+    // Validar credenciales en la BD
+    Usuario usuario = ControladorBD.validarLogin(correo, contrasena);
+    
+    if (usuario != null) {
+        // Login exitoso
+        mostrarAlerta("Inicio de sesión exitoso", 
+            "Bienvenido " + usuario.getNombreCompleto() + "!\nTipo: " + usuario.getTipoUsuario(), 
+            Alert.AlertType.INFORMATION);
+        
+        // ✅ CORREGIDO: Cargar app Y PASAR EL USUARIO
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/Vista/Dashboard.fxml"));
+            Parent root = loader.load();
+            
+            // 🔑 OBTENER EL CONTROLADOR DEL DASHBOARD Y PASAR EL USUARIO
+            ControladorDashboard controladorDashboard = loader.getController();
+            controladorDashboard.setUsuarioLogueado(usuario);
+            
+            Stage stage = (Stage) btnLogin.getScene().getWindow();
+            Scene scene = new Scene(root);
+            stage.setScene(scene);
+            stage.setTitle("App - " + usuario.getNombreCompleto()); // Personalizar título
+            stage.show();
+            
+        } catch (IOException e) {
+            e.printStackTrace();
+            mostrarAlerta("Error", "No se pudo cargar la aplicación: " + e.getMessage(), Alert.AlertType.ERROR);
+        }
+    
+    } else {
+        // Login fallido
+        mostrarAlerta("Error de inicio de sesión", 
+            "Correo o contraseña incorrectos. Por favor, intente nuevamente.", 
+            Alert.AlertType.ERROR);
+    }
+}
 
     //Codigo reutilizable para mostrar alertas
     private void mostrarAlerta(String titulo, String mensaje, Alert.AlertType tipo) {
