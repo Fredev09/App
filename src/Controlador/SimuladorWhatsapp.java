@@ -14,10 +14,9 @@ public class SimuladorWhatsapp {
     
     private static ControladorDashboard dashboardInstance;
     
-    // 🔥 MÉTODO PARA CONECTAR CON EL DASHBOARD
+    //MÉTODO PARA CONECTAR CON EL DASHBOARD
     public static void setDashboardInstance(ControladorDashboard dashboard) {
         dashboardInstance = dashboard;
-        System.out.println("✅ SimuladorWhatsapp conectado al Dashboard");
     }
     
     // SIMULAR CLIENTES QUE ESCRIBEN
@@ -88,7 +87,6 @@ public class SimuladorWhatsapp {
     
     // 🔥 SIMULAR VARIOS CLIENTES AL MISMO TIEMPO (PARA PRUEBAS DE CARGA)
     public static void simularVariosClientes() {
-        System.out.println("🚀 Simulando múltiples clientes...");
         
         // Cliente 1 pide catálogo
         CLIENTE_1.simularConsultaCatalogo();
@@ -104,8 +102,6 @@ public class SimuladorWhatsapp {
         
         // Cliente 3 hace reserva
         CLIENTE_3.simularReserva(2, 1);
-        
-        System.out.println("✅ Simulación de múltiples clientes completada");
     }
     
     // 🔥 VERIFICAR ESTADO DEL SIMULADOR

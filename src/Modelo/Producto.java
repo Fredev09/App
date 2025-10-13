@@ -19,6 +19,7 @@ public class Producto {
     private String imagenPath;
     private boolean disponible; 
     private String fechaCreacion;
+    private String imagen;
 
     // Constructores
     public Producto() {}

@@ -16,6 +16,7 @@ import java.sql.Statement;
 import java.io.File;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.scene.control.Alert;
 
 /**
  *
@@ -35,97 +36,97 @@ public class ControladorBD {
 
             Connection conn = getConnection();
 
-            // Tabla de usuarios (ya la tienes)
             String sqlUsuarios = """
-            CREATE TABLE IF NOT EXISTS usuarios (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre_completo TEXT NOT NULL,
-                correo TEXT UNIQUE NOT NULL,
-                contrasena TEXT NOT NULL,
-                tipo_usuario TEXT NOT NULL,
-                telefono TEXT,
-                descripcion TEXT,
-                redes_sociales TEXT,
-                fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-            """;
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre_completo TEXT NOT NULL,
+            correo TEXT UNIQUE NOT NULL,
+            contrasena TEXT NOT NULL,
+            tipo_usuario TEXT NOT NULL,
+            telefono TEXT,
+            descripcion TEXT,
+            redes_sociales TEXT,
+            fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        """;
 
-            // ✅ TABLA DE PRODUCTOS (NUEVA)
             String sqlProductos = """
-            CREATE TABLE IF NOT EXISTS productos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                usuario_id INTEGER NOT NULL,
-                nombre TEXT NOT NULL,
-                descripcion TEXT,
-                precio REAL NOT NULL,
-                cantidad_disponible INTEGER NOT NULL,
-                categoria TEXT,
-                imagen_path TEXT,
-                disponible BOOLEAN DEFAULT 1,
-                fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
-            )
-            """;
+        CREATE TABLE IF NOT EXISTS productos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id INTEGER NOT NULL,
+            nombre TEXT NOT NULL,
+            descripcion TEXT,
+            precio REAL NOT NULL,
+            cantidad_disponible INTEGER NOT NULL,
+            categoria TEXT,
+            imagen_path TEXT,  
+            disponible BOOLEAN DEFAULT 1,
+            fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
+        )
+        """;
 
-            // Tabla de reservas (ya la tienes)
             String sqlReservas = """
-            CREATE TABLE IF NOT EXISTS reservas (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                producto_id INTEGER NOT NULL,
-                nombre_cliente TEXT NOT NULL,
-                telefono_cliente TEXT NOT NULL,
-                cantidad INTEGER NOT NULL,
-                total REAL NOT NULL,
-                fecha_reserva DATETIME DEFAULT CURRENT_TIMESTAMP,
-                estado TEXT DEFAULT 'Pendiente',
-                FOREIGN KEY (producto_id) REFERENCES productos (id)
-            )
-            """;
+        CREATE TABLE IF NOT EXISTS reservas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            producto_id INTEGER NOT NULL,
+            nombre_cliente TEXT NOT NULL,
+            telefono_cliente TEXT NOT NULL,
+            cantidad INTEGER NOT NULL,
+            total REAL NOT NULL,
+            fecha_reserva DATETIME DEFAULT CURRENT_TIMESTAMP,
+            estado TEXT DEFAULT 'Pendiente',
+            FOREIGN KEY (producto_id) REFERENCES productos (id)
+        )
+        """;
 
-            // ✅ TABLA DE PROYECTOS (para fundaciones)
             String sqlProyectos = """
-            CREATE TABLE IF NOT EXISTS proyectos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                usuario_id INTEGER NOT NULL,
-                nombre TEXT NOT NULL,
-                descripcion TEXT,
-                estado TEXT NOT NULL,
-                meta_donaciones REAL,
-                donaciones_recibidas REAL DEFAULT 0,
-                fecha_inicio DATE,
-                fecha_fin DATE,
-                fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
-            )
-            """;
+        CREATE TABLE IF NOT EXISTS proyectos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id INTEGER NOT NULL,
+            nombre TEXT NOT NULL,
+            descripcion TEXT,
+            estado TEXT NOT NULL,
+            meta_donaciones REAL,
+            donaciones_recibidas REAL DEFAULT 0,
+            fecha_inicio DATE,
+            fecha_fin DATE,
+            fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
+        )
+        """;
 
-            // ✅ TABLA DE INSCRIPCIONES (para cursos de fundaciones)
             String sqlInscripciones = """
-            CREATE TABLE IF NOT EXISTS inscripciones (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                proyecto_id INTEGER NOT NULL,
-                nombre_estudiante TEXT NOT NULL,
-                telefono TEXT NOT NULL,
-                email TEXT,
-                nivel TEXT,
-                interes TEXT,
-                estado TEXT DEFAULT 'Por contactar',
-                fecha_inscripcion DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (proyecto_id) REFERENCES proyectos (id)
-            )
-            """;
+        CREATE TABLE IF NOT EXISTS inscripciones (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            proyecto_id INTEGER NOT NULL,
+            nombre_estudiante TEXT NOT NULL,
+            telefono TEXT NOT NULL,
+            email TEXT,
+            nivel TEXT,
+            interes TEXT,
+            estado TEXT DEFAULT 'Por contactar',
+            fecha_inscripcion DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (proyecto_id) REFERENCES proyectos (id)
+        )
+        """;
 
             Statement stmt = conn.createStatement();
             stmt.execute(sqlUsuarios);
-            stmt.execute(sqlProductos);    // ✅ Ejecutar creación de productos
+            stmt.execute(sqlProductos);
             stmt.execute(sqlReservas);
-            stmt.execute(sqlProyectos);    // ✅ Ejecutar creación de proyectos
-            stmt.execute(sqlInscripciones); // ✅ Ejecutar creación de inscripciones
+            stmt.execute(sqlProyectos);
+            stmt.execute(sqlInscripciones);
+
+            try {
+                String alterSql = "ALTER TABLE productos ADD COLUMN imagen_path TEXT";
+                stmt.execute(alterSql);
+            } catch (SQLException e) {
+                mostrarAlerta("Informacion", "La imagen ya existe en productos");
+            }
 
             stmt.close();
             conn.close();
-
-            System.out.println("Base de datos COMPLETA inicializada: " + DB_PATH);
         } catch (SQLException e) {
             System.err.println("Error inicializando BD: " + e.getMessage());
         }
@@ -182,7 +183,7 @@ public class ControladorBD {
             }
 
         } catch (SQLException e) {
-            System.err.println("❌ Error validando login: " + e.getMessage());
+            System.err.println("Error validando login: " + e.getMessage());
         }
 
         return null;
@@ -199,7 +200,7 @@ public class ControladorBD {
             return rs.next();
 
         } catch (SQLException e) {
-            System.err.println("❌ Error verificando correo: " + e.getMessage());
+            System.err.println("Error verificando correo: " + e.getMessage());
             return false;
         }
     }
@@ -241,8 +242,6 @@ public class ControladorBD {
             pstmt.setInt(1, usuarioId);
             ResultSet rs = pstmt.executeQuery();
 
-            System.out.println("🔍 Ejecutando consulta de reservas para usuario: " + usuarioId);
-
             int contador = 0;
             while (rs.next()) {
                 contador++;
@@ -257,25 +256,17 @@ public class ControladorBD {
                 reserva.setEstado(rs.getString("estado"));
 
                 reservas.add(reserva);
-
-                // 🔥 DEBUG: Ver cada reserva
-                System.out.println("📋 Reserva " + contador + ": " + reserva.getNombreCliente()
-                        + " - " + reserva.getProductoId());
             }
 
-            System.out.println("✅ Total reservas encontradas: " + contador);
-
         } catch (SQLException e) {
-            System.err.println("❌ Error obteniendo reservas: " + e.getMessage());
+            System.err.println("Error obteniendo reservas: " + e.getMessage());
         }
         return reservas;
     }
 
-    /**
-     * Agregar un nuevo producto a la base de datos
-     */
+    // Agregar un nuevo producto a la base de datos 
     public static boolean agregarProducto(Producto producto) {
-        String sql = "INSERT INTO productos (usuario_id, nombre, descripcion, precio, cantidad_disponible, categoria) VALUES (?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO productos (usuario_id, nombre, descripcion, precio, cantidad_disponible, categoria, imagen_path) VALUES (?, ?, ?, ?, ?, ?, ?)";
 
         try (Connection conn = getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
@@ -285,12 +276,13 @@ public class ControladorBD {
             pstmt.setDouble(4, producto.getPrecio());
             pstmt.setInt(5, producto.getCantidadDisponible());
             pstmt.setString(6, producto.getCategoria());
+            pstmt.setString(7, producto.getImagenPath());
 
             pstmt.executeUpdate();
             return true;
 
         } catch (SQLException e) {
-            System.err.println("❌ Error agregando producto: " + e.getMessage());
+            System.err.println("Error agregando producto: " + e.getMessage());
             return false;
         }
     }
@@ -322,7 +314,7 @@ public class ControladorBD {
                 productos.add(producto);
             }
         } catch (SQLException e) {
-            System.err.println("❌ Error obteniendo productos: " + e.getMessage());
+            System.err.println("Error obteniendo productos: " + e.getMessage());
         }
         return productos;
     }
@@ -366,14 +358,13 @@ public class ControladorBD {
         Connection conn = null;
         try {
             conn = getConnection();
-            conn.setAutoCommit(false); // Iniciar transacción
+            conn.setAutoCommit(false); 
 
             // 1. Primero eliminar reservas asociadas
             String sqlReservas = "DELETE FROM reservas WHERE producto_id = ?";
             try (PreparedStatement pstmtReservas = conn.prepareStatement(sqlReservas)) {
                 pstmtReservas.setInt(1, productoId);
                 pstmtReservas.executeUpdate();
-                System.out.println("📋 Reservas eliminadas para producto ID: " + productoId);
             }
 
             // 2. Luego eliminar el producto
@@ -383,11 +374,10 @@ public class ControladorBD {
                 int filasAfectadas = pstmtProducto.executeUpdate();
 
                 if (filasAfectadas > 0) {
-                    conn.commit(); // Confirmar transacción
-                    System.out.println("🗑️ Producto eliminado - ID: " + productoId);
+                    conn.commit(); 
                     return true;
                 } else {
-                    conn.rollback(); // Revertir transacción
+                    conn.rollback(); 
                     return false;
                 }
             }
@@ -398,9 +388,9 @@ public class ControladorBD {
                     conn.rollback();
                 }
             } catch (SQLException ex) {
-                System.err.println("❌ Error en rollback: " + ex.getMessage());
+                System.err.println("Error en rollback: " + ex.getMessage());
             }
-            System.err.println("❌ Error eliminando producto completo: " + e.getMessage());
+            System.err.println("Error eliminando producto completo: " + e.getMessage());
             return false;
         } finally {
             try {
@@ -408,7 +398,7 @@ public class ControladorBD {
                     conn.setAutoCommit(true);
                 }
             } catch (SQLException e) {
-                System.err.println("❌ Error restaurando auto-commit: " + e.getMessage());
+                System.err.println("Error restaurando auto-commit: " + e.getMessage());
             }
         }
     }
@@ -426,7 +416,7 @@ public class ControladorBD {
             return filasAfectadas > 0;
 
         } catch (SQLException e) {
-            System.err.println("❌ Error actualizando stock: " + e.getMessage());
+            System.err.println("Error actualizando stock: " + e.getMessage());
             return false;
         }
     }
@@ -452,9 +442,83 @@ public class ControladorBD {
             return filasAfectadas > 0;
 
         } catch (SQLException e) {
-            System.err.println("❌ Error actualizando producto: " + e.getMessage());
+            System.err.println("Error actualizando producto: " + e.getMessage());
             return false;
         }
+    }
+
+    /**
+     * Insertar producto CON IMAGEN (versión actualizada)
+     */
+    public static boolean insertarProducto(Producto producto) {
+        String sql = "INSERT INTO productos (usuario_id, nombre, descripcion, precio, cantidad_disponible, categoria, imagen_path) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?)";
+
+        try (Connection conn = getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, producto.getUsuarioId());
+            pstmt.setString(2, producto.getNombre());
+            pstmt.setString(3, producto.getDescripcion());
+            pstmt.setDouble(4, producto.getPrecio());
+            pstmt.setInt(5, producto.getCantidadDisponible());
+            pstmt.setString(6, producto.getCategoria());
+            pstmt.setString(7, producto.getImagenPath()); // ✅ NUEVO
+
+            pstmt.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            System.err.println("Error insertando producto: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Actualizar producto CON IMAGEN (versión actualizada)
+     */
+    // En ControladorBD.java
+    public static boolean actualizarProductoConImagen(Producto producto) {
+        String sql = "UPDATE productos SET imagen_path = ? WHERE id = ?";
+
+        try (Connection conn = getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, producto.getImagenPath());
+            pstmt.setInt(2, producto.getId());
+
+            int filasAfectadas = pstmt.executeUpdate();
+            return filasAfectadas > 0;
+
+        } catch (SQLException e) {
+            System.err.println("Error actualizando imagen del producto: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Obtener producto por ID
+     */
+    public static Producto obtenerProductoPorId(int productoId) {
+        String sql = "SELECT * FROM productos WHERE id = ?";
+
+        try (Connection conn = getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, productoId);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                return mapearProducto(rs);
+            }
+        } catch (SQLException e) {
+            System.err.println("Error obteniendo producto por ID: " + e.getMessage());
+        }
+        return null;
+    }
+    
+    private static void mostrarAlerta(String titulo, String mensaje) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(titulo);
+        alert.setHeaderText(null);
+        alert.setContentText(mensaje);
+        alert.showAndWait();
     }
 
 }

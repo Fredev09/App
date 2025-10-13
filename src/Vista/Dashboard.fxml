@@ -63,27 +63,27 @@
                     <!-- Tabla de productos -->
                     <TableView fx:id="tablaProductos" onMouseClicked="#manejarClickTabla" prefHeight="286.0" prefWidth="621.0" styleClass="data-table">
                         <columns>
-                            <TableColumn prefWidth="200" text="Producto">
+                            <TableColumn prefWidth="171.20000839233398" text="Producto">
                                 <cellValueFactory>
                                     <PropertyValueFactory property="nombre" />
                                 </cellValueFactory>
                             </TableColumn>
-                            <TableColumn prefWidth="100" text="Precio">
+                            <TableColumn prefWidth="155.19996643066406" text="Precio">
                                 <cellValueFactory>
                                     <PropertyValueFactory property="precio" />
                                 </cellValueFactory>
                             </TableColumn>
-                            <TableColumn prefWidth="80" text="Stock">
+                            <TableColumn prefWidth="125.60003662109375" text="Stock">
                                 <cellValueFactory>
                                     <PropertyValueFactory property="cantidadDisponible" />
                                 </cellValueFactory>
                             </TableColumn>
-                            <TableColumn prefWidth="120" text="Categoría">
+                            <TableColumn prefWidth="167.199951171875" text="Categoría">
                                 <cellValueFactory>
                                     <PropertyValueFactory property="categoria" />
                                 </cellValueFactory>
                             </TableColumn>
-                            <TableColumn prefWidth="120" text="Acciones" />
+                            <TableColumn minWidth="0.0" prefWidth="2.39990234375" text="Acciones" />
                         </columns>
                     </TableView>
                     
@@ -106,6 +106,32 @@
                     </HBox>
                     <Label style="-fx-font-style: italic; -fx-text-fill: #666;" text="Instrucciones: Copia este texto y pégalo en WhatsApp para enviarlo a tus clientes" />
                 </VBox>
+            </Tab>
+            
+            <!-- NUEVA PESTAÑA: Catálogo Visual con Imágenes -->
+            <Tab text="📋️Catálogo Visual">
+                <ScrollPane fitToWidth="true">
+                    <VBox spacing="15" style="-fx-padding: 20;">
+                        <Label style="-fx-font-weight: bold; -fx-font-size: 18;" text="CATÁLOGO VISUAL DE PRODUCTOS" />
+
+                        <!-- Botones de gestión - VERSIÓN SIMPLIFICADA Y CORREGIDA -->
+                        <HBox alignment="CENTER" spacing="10">
+                            <Button onAction="#generarCatalogoVisual" styleClass="btn-primary" text="🔄 Generar Vista" />
+                            <Button onAction="#copiarCatalogoTextoSolo" styleClass="btn-whatsapp" text="📄 Copiar Texto" />
+                            <Button onAction="#exportarCatalogoHTML" styleClass="btn-success" text="🌐 Exportar HTML" />
+                        </HBox>
+
+                        <!-- Contenedor del catálogo visual -->
+                        <VBox fx:id="contenedorCatalogoVisual" spacing="20" style="-fx-padding: 15; -fx-background-color: #f8f9fa; -fx-border-radius: 10;">
+                            <Label style="-fx-text-fill: #666; -fx-font-style: italic;" text="Haz clic en 'Generar Vista' para ver tu catálogo" />
+                        </VBox>
+
+                        <!-- Información adicional -->
+                        <HBox alignment="CENTER" spacing="10" style="-fx-padding: 10; -fx-background-color: #e8f4f8; -fx-border-radius: 5;">
+                            <Label style="-fx-text-fill: #0c5460; -fx-font-size: 12;" text="💡 Cada producto tiene botones para copiar individualmente con imagen" />
+                        </HBox>
+                    </VBox>
+                </ScrollPane>
             </Tab>
             
             <!-- Pestaña de Reservas COMPLETA -->
@@ -150,40 +176,31 @@
                 </VBox>
             </Tab>
 
-            <!-- PESTAÑA SIMULADOR OPTIMIZADA - VERSIÓN COMPACTA Y FUNCIONAL -->
-            <!-- PESTAÑA SIMULADOR - VERSIÓN CON SECCIONES MÁS GRANDES -->
+            <!-- PESTAÑA SIMULADOR -->
             <Tab text="🔬 Simulador WhatsApp">
                 <ScrollPane fitToWidth="true" style="-fx-padding: 10;">
                     <VBox spacing="15" style="-fx-padding: 10;">
                         <Label style="-fx-font-weight: bold; -fx-font-size: 18; -fx-text-fill: #2c3e50;" text="SIMULADOR WHATSAPP - PRUEBAS LOCALES" />
-            
+        
                         <!-- Sección 1: Procesar mensajes manuales - MÁS GRANDE -->
                         <VBox spacing="10" style="-fx-padding: 15; -fx-background-color: #f8f9fa; -fx-border-radius: 8; -fx-border-color: #ddd;">
                             <Label style="-fx-font-weight: bold; -fx-text-fill: #2c3e50; -fx-font-size: 16;" text="📥 Procesar Mensaje Manual" />
-                            <TextField fx:id="txtNumeroClienteSimulado" promptText="Número del cliente ej: +573001234567" 
-                                       style="-fx-pref-height: 40; -fx-font-size: 14;" />
-                            <TextField fx:id="txtMensajeClienteSimulado" promptText="Mensaje del cliente ej: CATALOGO o RESERVAR 1 2" 
-                                       style="-fx-pref-height: 40; -fx-font-size: 14;" />
-                            <Button fx:id="btnProcesarSimulacion" onAction="#procesarMensajeAutomatico" 
-                                    style="-fx-pref-height: 45; -fx-font-size: 14;" styleClass="btn-primary" 
-                                    text="🔄 Procesar Mensaje Simulado" />
+                            <TextField fx:id="txtNumeroClienteSimulado" promptText="Número del cliente ej: +573001234567" style="-fx-pref-height: 40; -fx-font-size: 14;" />
+                            <TextField fx:id="txtMensajeClienteSimulado" promptText="Mensaje del cliente ej: CATALOGO o RESERVAR 1 2" style="-fx-pref-height: 40; -fx-font-size: 14;" />
+                            <Button fx:id="btnProcesarSimulacion" onAction="#procesarMensajeAutomatico" style="-fx-pref-height: 45; -fx-font-size: 14;" styleClass="btn-primary" text="🔄 Procesar Mensaje Simulado" />
                         </VBox>
 
                         <!-- Sección 2: Clientes predefinidos - MÁS GRANDE -->
                         <VBox spacing="10" style="-fx-padding: 15; -fx-background-color: #fff3cd; -fx-border-radius: 8; -fx-border-color: #ffeaa7;">
                             <Label style="-fx-font-weight: bold; -fx-text-fill: #856404; -fx-font-size: 16;" text="🚀 Clientes de Prueba Rápidos" />
-                            <HBox spacing="10" alignment="CENTER">
+                            <HBox alignment="CENTER" spacing="10">
                                 <VBox spacing="8">
-                                    <Button onAction="#simularCliente1" style="-fx-pref-height: 45; -fx-font-size: 13; -fx-pref-width: 200;" 
-                                            styleClass="btn-whatsapp" text="👩‍💼 Cliente 1: Pedir Catálogo" />
-                                    <Button onAction="#simularCliente2" style="-fx-pref-height: 45; -fx-font-size: 13; -fx-pref-width: 200;" 
-                                            styleClass="btn-success" text="👨‍💼 Cliente 2: Reservar Producto 1" />
+                                    <Button onAction="#simularCliente1" style="-fx-pref-height: 45; -fx-font-size: 13; -fx-pref-width: 200;" styleClass="btn-whatsapp" text="👩‍💼 Cliente 1: Pedir Catálogo" />
+                                    <Button onAction="#simularCliente2" style="-fx-pref-height: 45; -fx-font-size: 13; -fx-pref-width: 200;" styleClass="btn-success" text="👨‍💼 Cliente 2: Reservar Producto 1" />
                                 </VBox>
                                 <VBox spacing="8">
-                                    <Button onAction="#simularCliente3" style="-fx-pref-height: 45; -fx-font-size: 13; -fx-pref-width: 200;" 
-                                            styleClass="btn-primary" text="👩‍🎓 Cliente 3: Reservar Producto 2" />
-                                    <Button onAction="#simularMensajePersonalizado" style="-fx-pref-height: 45; -fx-font-size: 13; -fx-pref-width: 200;" 
-                                            styleClass="btn-secondary" text="💬 Mensaje Personalizado" />
+                                    <Button onAction="#simularCliente3" style="-fx-pref-height: 45; -fx-font-size: 13; -fx-pref-width: 200;" styleClass="btn-primary" text="👩‍🎓 Cliente 3: Reservar Producto 2" />
+                                    <Button onAction="#simularMensajePersonalizado" style="-fx-pref-height: 45; -fx-font-size: 13; -fx-pref-width: 200;" styleClass="btn-secondary" text="💬 Mensaje Personalizado" />
                                 </VBox>
                             </HBox>
                         </VBox>
@@ -191,13 +208,10 @@
                         <!-- Sección 3: Envío rápido - MÁS GRANDE -->
                         <VBox spacing="10" style="-fx-padding: 15; -fx-background-color: #d1ecf1; -fx-border-radius: 8; -fx-border-color: #bee5eb;">
                             <Label style="-fx-font-weight: bold; -fx-text-fill: #0c5460; -fx-font-size: 16;" text="📤 Envío Rápido de Respuestas" />
-                            <TextField fx:id="txtNumeroRespuesta" promptText="Número del cliente para enviar respuesta" 
-                                       style="-fx-pref-height: 40; -fx-font-size: 14;" />
-                            <HBox spacing="15" alignment="CENTER">
-                                <Button onAction="#enviarCatalogoWhatsApp" style="-fx-pref-height: 45; -fx-font-size: 13; -fx-pref-width: 200;" 
-                                        styleClass="btn-whatsapp" text="📋 Enviar Catálogo Completo" />
-                                <Button onAction="#enviarConfirmacionWhatsApp" style="-fx-pref-height: 45; -fx-font-size: 13; -fx-pref-width: 200;" 
-                                        styleClass="btn-success" text="✅ Enviar Confirmación" />
+                            <TextField fx:id="txtNumeroRespuesta" promptText="Número del cliente para enviar respuesta" style="-fx-pref-height: 40; -fx-font-size: 14;" />
+                            <HBox alignment="CENTER" spacing="15">
+                                <Button onAction="#enviarCatalogoWhatsApp" style="-fx-pref-height: 45; -fx-font-size: 13; -fx-pref-width: 200;" styleClass="btn-whatsapp" text="📋 Enviar Catálogo Completo" />
+                                <Button onAction="#enviarConfirmacionWhatsApp" style="-fx-pref-height: 45; -fx-font-size: 13; -fx-pref-width: 200;" styleClass="btn-success" text="✅ Enviar Confirmación" />
                             </HBox>
                         </VBox>
 
@@ -233,15 +247,12 @@
                             </VBox>
 
                             <!-- Botones de herramientas -->
-                            <HBox spacing="10" alignment="CENTER" style="-fx-padding: 10 0 0 0;">
-                                <Button onAction="#simularMultiplesClientes" style="-fx-pref-height: 40; -fx-font-size: 12; -fx-pref-width: 180;" 
-                                        styleClass="btn-primary" text="🚀 Simular Múltiples Clientes" />
-                                <Button onAction="#verEstadoSimulador" style="-fx-pref-height: 40; -fx-font-size: 12; -fx-pref-width: 150;" 
-                                        styleClass="btn-secondary" text="📊 Ver Estado del Sistema" />
+                            <HBox alignment="CENTER" spacing="10" style="-fx-padding: 10 0 0 0;">
+                                <Button onAction="#simularMultiplesClientes" style="-fx-pref-height: 40; -fx-font-size: 12; -fx-pref-width: 180;" styleClass="btn-primary" text="🚀 Simular Múltiples Clientes" />
+                                <Button onAction="#verEstadoSimulador" style="-fx-pref-height: 40; -fx-font-size: 12; -fx-pref-width: 150;" styleClass="btn-secondary" text="📊 Ver Estado del Sistema" />
                             </HBox>
                 
-                            <Label style="-fx-text-fill: #383d41; -fx-font-style: italic; -fx-font-size: 11; -fx-wrap-text: true;" 
-                                   text="💡 Consejo: Usa tu WhatsApp personal para las pruebas. El simulador solo prepara los mensajes, tú los envías manualmente." />
+                            <Label style="-fx-text-fill: #383d41; -fx-font-style: italic; -fx-font-size: 11; -fx-wrap-text: true;" text="💡 Consejo: Usa tu WhatsApp personal para las pruebas. El simulador solo prepara los mensajes, tú los envías manualmente." />
                         </VBox>
                     </VBox>
                 </ScrollPane>
