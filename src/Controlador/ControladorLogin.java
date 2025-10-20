@@ -31,7 +31,6 @@ import javafx.stage.Stage;
 public class ControladorLogin {
 
     // Componentes pa la interfaz
-
     // Campo de texto para ingresar el correo electrónico
     @FXML
     private TextField txtCorreo;
@@ -108,65 +107,79 @@ public class ControladorLogin {
     // Métodos de acción
 
     /*
-     * Valida los campos de correo y contraseña, y muestra alertas informativas.
-     * Muestra un mensaje de advertencia si hay campos vacíos,
-     * o un mensaje de información con los datos ingresados.
+     Valida los campos de correo y contraseña, y muestra alertas informativas.
+     Muestra un mensaje de advertencia si hay campos vacíos,
+     o un mensaje de información con los datos ingresados.
      */
     private void iniciarSesion() {
-    // obtener texto de los campos
-    String correo = txtCorreo.getText().trim();
-    String contrasena = txtContrasena.getText();
+        // obtener texto de los campos
+        String correo = txtCorreo.getText().trim();
+        String contrasena = txtContrasena.getText();
 
-    // Validar campos vacíos
-    if (correo.isEmpty() || contrasena.isEmpty()) {
-        mostrarAlerta("Campos obligatorios", "Por favor, complete todos los campos.", Alert.AlertType.WARNING);
-        return;
-    }
-
-    // Validar formato de correo basico
-    if (!correo.contains("@")) {
-        mostrarAlerta("Correo inválido", "Por favor, ingrese un correo electrónico válido.", Alert.AlertType.WARNING);
-        return;
-    }
-
-    // Validar credenciales en la BD
-    Usuario usuario = ControladorBD.validarLogin(correo, contrasena);
-    
-    if (usuario != null) {
-        // Login exitoso
-        mostrarAlerta("Inicio de sesión exitoso", 
-            "Bienvenido " + usuario.getNombreCompleto() + "!\nTipo: " + usuario.getTipoUsuario(), 
-            Alert.AlertType.INFORMATION);
-        
-        // ✅ CORREGIDO: Cargar app Y PASAR EL USUARIO
-        try {
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("/Vista/Dashboard.fxml"));
-            Parent root = loader.load();
-            
-            // 🔑 OBTENER EL CONTROLADOR DEL DASHBOARD Y PASAR EL USUARIO
-            ControladorDashboard controladorDashboard = loader.getController();
-            controladorDashboard.setUsuarioLogueado(usuario);
-            
-            Stage stage = (Stage) btnLogin.getScene().getWindow();
-            Scene scene = new Scene(root);
-            stage.setScene(scene);
-            stage.setTitle("App - " + usuario.getNombreCompleto()); // Personalizar título
-            stage.show();
-            
-        } catch (IOException e) {
-            e.printStackTrace();
-            mostrarAlerta("Error", "No se pudo cargar la aplicación: " + e.getMessage(), Alert.AlertType.ERROR);
+        // Validar campos vacíos
+        if (correo.isEmpty() || contrasena.isEmpty()) {
+            mostrarAlerta("Campos obligatorios", "Por favor, complete todos los campos.", Alert.AlertType.WARNING);
+            return;
         }
-    
-    } else {
-        // Login fallido
-        mostrarAlerta("Error de inicio de sesión", 
-            "Correo o contraseña incorrectos. Por favor, intente nuevamente.", 
-            Alert.AlertType.ERROR);
-    }
-}
 
+        // Validar formato de correo basico
+        if (!correo.contains("@")) {
+            mostrarAlerta("Correo inválido", "Por favor, ingrese un correo electrónico válido.", Alert.AlertType.WARNING);
+            return;
+        }
+
+        // Validar credenciales en la BD
+        Usuario usuario = ControladorBD.validarLogin(correo, contrasena);
+
+        if (usuario != null) {
+            // Login exitoso
+            mostrarAlerta("Inicio de sesión exitoso",
+                    "Bienvenido " + usuario.getNombreCompleto() + "!\nTipo: " + usuario.getTipoUsuario(),
+                    Alert.AlertType.INFORMATION);
+
+            try {
+                if ("Fundación".equals(usuario.getTipoUsuario())) {
+                    //Cargar dashboard para fundaciones
+                    FXMLLoader loader = new FXMLLoader(getClass().getResource("/Vista/DashboardFundacion.fxml"));
+                    Parent root = loader.load();
+
+                    ControladorDashboardFundacion controladorFundacion = loader.getController();
+                    controladorFundacion.setUsuarioLogueado(usuario);
+
+                    Stage stage = (Stage) btnLogin.getScene().getWindow();
+                    Scene scene = new Scene(root);
+                    stage.setScene(scene);
+                    stage.setTitle("Impulsa360 - Fundación: " + usuario.getNombreCompleto());
+                    stage.centerOnScreen();
+                    stage.show();
+
+                } else {
+                    // Cargar dashboard para EMPRENDEDORES (Productos)
+                    FXMLLoader loader = new FXMLLoader(getClass().getResource("/Vista/Dashboard.fxml"));
+                    Parent root = loader.load();
+
+                    ControladorDashboard controladorDashboard = loader.getController();
+                    controladorDashboard.setUsuarioLogueado(usuario);
+
+                    Stage stage = (Stage) btnLogin.getScene().getWindow();
+                    Scene scene = new Scene(root);
+                    stage.setScene(scene);
+                    stage.setTitle("Impulsa360 - Emprendedor: " + usuario.getNombreCompleto());
+                    stage.centerOnScreen();
+                    stage.show();
+                }
+
+            } catch (IOException e) {
+                e.printStackTrace();
+                mostrarAlerta("Error", "No se pudo cargar la aplicación: " + e.getMessage(), Alert.AlertType.ERROR);
+            }
+        } else {
+            mostrarAlerta("Usuario no existe", "Cuenta no encontrada", Alert.AlertType.INFORMATION);
+        }
+            
+    }
     //Codigo reutilizable para mostrar alertas
+
     private void mostrarAlerta(String titulo, String mensaje, Alert.AlertType tipo) {
         Alert alerta = new Alert(tipo);
         alerta.setTitle(titulo);
@@ -191,17 +204,14 @@ public class ControladorLogin {
             Scene scene = new Scene(root);
             stage.setScene(scene);
             stage.setTitle("Registro de usuario");
+            stage.centerOnScreen();
             stage.show();
         } catch (IOException e) {
-            e.printStackTrace(); // Manejo de errores de carga del FXML
+            e.printStackTrace(); 
         }
     }
 
-    /*
-     * Navega a la ventana de recuperación de contraseña.
-     * Actualmente no implementado.
-     */
     private void irOlvideContrasena() {
-        // Por implementar
+        // por ahora no
     }
 }

@@ -14,7 +14,7 @@ public class Usuario {
     private String nombreCompleto;
     private String correo;
     private String contrasena;
-    private String tipoUsuario; // "Emprendedor" o "Fundación"
+    private String tipoUsuario; 
     private String telefono;
     private String descripcion;
     private String redesSociales;
@@ -31,7 +31,7 @@ public class Usuario {
         this.tipoUsuario = tipoUsuario;
     }
 
-    // Getters y Setters (agregar los nuevos)
+    // Getters y Setters 
     public int getId() {
         return id;
     }

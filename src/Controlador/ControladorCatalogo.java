@@ -45,7 +45,7 @@ public class ControladorCatalogo {
         return catalogo.toString();
     }
 
-    // NUEVO: Generar enlace de WhatsApp con el catalogo
+    // Generar enlace de WhatsApp con el catalogo
     public static String generarEnlaceWhatsApp(String numero, List<Producto> productos) {
         try {
             String catalogo = GenerarCatalogo(productos);
@@ -59,7 +59,7 @@ public class ControladorCatalogo {
         }
     }
 
-    // NUEVO: Generar mensaje de confirmacion de reserva
+    // Generar mensaje de confirmacion de reserva
     public static String generarMensajeConfirmacionReserva(Reserva reserva, Producto producto) {
         return "*RESERVA CONFIRMADA* \n\n"
                 + "Producto: " + producto.getNombre() + "\n"
@@ -70,7 +70,7 @@ public class ControladorCatalogo {
                 + "¡Gracias por tu compra!";
     }
 
-    // NUEVO: Generar enlace para notificar al cliente
+    // Generar enlace para notificar al cliente
     public static String generarEnlaceNotificacionCliente(String numeroCliente, Reserva reserva, Producto producto) {
         try {
             String mensaje = generarMensajeConfirmacionReserva(reserva, producto);
@@ -85,7 +85,7 @@ public class ControladorCatalogo {
     }
 
     private static String limpiarNumero(String numero) {
-        // Remover espacios, guiones, parentesis, etc.
+        // Remover espacio guiones parentesis
         return numero.replaceAll("[^0-9+]", "");
     }
 }

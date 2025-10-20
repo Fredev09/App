@@ -42,7 +42,6 @@ import javafx.stage.Stage;
  */
 public class ControladorDashboard implements Initializable {
 
-    // Componentes del Header
     @FXML
     private Label lblUsuario;
 
@@ -62,7 +61,7 @@ public class ControladorDashboard implements Initializable {
     @FXML
     private VBox formContainer;
 
-    // Componentes de Catálogo WhatsApp
+    // Componentes de Catalogo para WhatsApp
     @FXML
     private TextArea areaCatalogo;
 
@@ -87,7 +86,7 @@ public class ControladorDashboard implements Initializable {
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        // Inicialización básica - los datos se cargan cuando se establece el usuario
+        // Inicialización básica los datos se cargan cuando se establece el usuario
     }
 
     /**
@@ -97,9 +96,7 @@ public class ControladorDashboard implements Initializable {
         this.usuarioLogueado = usuario;
         lblUsuario.setText(usuario.getNombreCompleto() + " (" + usuario.getTipoUsuario() + ")");
 
-        //  CONECTAR EL SIMULADOR CON ESTA INSTANCIA
         SimuladorWhatsapp.setDashboardInstance(this);
-
         cargarDatosIniciales();
     }
 
@@ -164,7 +161,7 @@ public class ControladorDashboard implements Initializable {
     }
 
     /**
-     * Guarda un producto (nuevo o editado) en la base de datos
+     * Guarda un producto nuevo o editado en la base de datos
      */
     @FXML
     private void guardarProducto() {
@@ -278,7 +275,6 @@ public class ControladorDashboard implements Initializable {
     @FXML
     private void copiarCatalogoPortapapeles() {
         try {
-            // Opción 1: Si hay catálogo visual, copiar como imagen
             if (!contenedorCatalogoVisual.getChildren().isEmpty()) {
                 // Crear imagen temporal
                 File tempFile = File.createTempFile("catalogo_temp", ".png");
@@ -288,7 +284,7 @@ public class ControladorDashboard implements Initializable {
                 Image image = new Image(tempFile.toURI().toString());
                 ClipboardContent content = new ClipboardContent();
                 content.putImage(image);
-                content.putString(areaCatalogo.getText()); // También copiar texto por si acaso
+                content.putString(areaCatalogo.getText()); 
 
                 Clipboard.getSystemClipboard().setContent(content);
 
@@ -297,7 +293,7 @@ public class ControladorDashboard implements Initializable {
 
                 mostrarAlerta("Éxito", "✅ Catálogo visual copiado al portapapeles como imagen!\n\nPuedes pegarlo en cualquier aplicación que soporte imágenes.");
 
-            } // Opción 2: Si no hay catálogo visual, copiar solo texto
+            } // Si no hay catalogo visual copiar el txt
             else if (areaCatalogo.getText() != null && !areaCatalogo.getText().trim().isEmpty()) {
                 String catalogo = areaCatalogo.getText();
                 Clipboard clipboard = Clipboard.getSystemClipboard();
@@ -338,9 +334,7 @@ public class ControladorDashboard implements Initializable {
         }
     }
 
-    /**
-     * Elimina el producto seleccionado de la tabla
-     */
+  
     /**
      * Elimina el producto seleccionado de la tabla Y de la base de datos
      */
@@ -384,7 +378,7 @@ public class ControladorDashboard implements Initializable {
      */
     @FXML
     private void manejarClickTabla(javafx.scene.input.MouseEvent event) {
-        if (event.getClickCount() == 2) { // Doble click
+        if (event.getClickCount() == 2) { 
             editarProducto();
         }
     }
@@ -457,7 +451,6 @@ public class ControladorDashboard implements Initializable {
     @FXML
     private Button btnProcesarSimulacion;
 
-// 🔥 CORRECCIÓN: Agregar los métodos que faltan
     @FXML
     private void simularCliente1() {
         txtNumeroClienteSimulado.setText("+573001234567");
@@ -515,11 +508,9 @@ public class ControladorDashboard implements Initializable {
         txtMensajeClienteSimulado.clear();
     }
 
-// ?MÉTODO AUXILIAR (también en ControladorDashboard)
     private void procesarMensajeDirecto(String numeroCliente, String mensaje) {
         String mensajeUpper = mensaje.toUpperCase();
 
-        // DETECTAR SOLICITUD DE CATÁLOGO
         if (mensajeUpper.contains("CATALOGO") || mensajeUpper.contains("PRODUCTOS")
                 || mensajeUpper.contains("TIENES") || mensajeUpper.contains("HOLA")
                 || mensajeUpper.contains("PRECIOS")) {
@@ -531,7 +522,7 @@ public class ControladorDashboard implements Initializable {
                     + "📤 Abriendo WhatsApp para responder...");
 
             abrirWhatsAppConCatalogo(numeroCliente);
-        } // DETECTAR Y PROCESAR RESERVA AUTOMÁTICAMENTE
+        } 
         else if (mensajeUpper.startsWith("RESERVAR")) {
             boolean exito = procesarReservaAutomatica(numeroCliente, mensajeUpper);
 
@@ -592,7 +583,6 @@ public class ControladorDashboard implements Initializable {
         }
     }
 
-//MÉTODOS DE WHATSAPP QUE FALTAN
     private void abrirWhatsAppConCatalogo(String numeroCliente) {
         try {
             String catalogo = areaCatalogo.getText();
@@ -610,7 +600,7 @@ public class ControladorDashboard implements Initializable {
 
     private void abrirWhatsAppConConfirmacion(String numeroCliente) {
         try {
-            String confirmacion = "✅ ¡Reserva confirmada! Te contactaremos pronto para coordinar el pago y entrega. ¡Gracias por tu compra! 🛍️";
+            String confirmacion = "¡Reserva confirmada! Te contactaremos pronto para coordinar el pago y entrega. ¡Gracias por tu compra! 🛍️";
             String numeroLimpio = numeroCliente.replaceAll("[^0-9+]", "");
 
             String mensajeCodificado = java.net.URLEncoder.encode(confirmacion, "UTF-8");
