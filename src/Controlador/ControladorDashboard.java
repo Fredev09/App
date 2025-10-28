@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.net.URL;
 import java.util.List;
 import java.util.ResourceBundle;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.embed.swing.SwingFXUtils;
@@ -24,13 +25,17 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.TabPane;
+import javafx.scene.control.TableCell;
+import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
@@ -77,6 +82,9 @@ public class ControladorDashboard implements Initializable {
 
     private Usuario usuarioActual;
 
+    @FXML
+    private TableColumn<Producto, Double> colPrecio;
+
     // Datos
     private ObservableList<Producto> productosData;
     private ObservableList<Reserva> reservasData;
@@ -84,9 +92,150 @@ public class ControladorDashboard implements Initializable {
     private boolean editandoProducto = false;
     private Producto productoEditando;
 
+    private ControladorGit gestorGit;
+
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        // Inicialización básica los datos se cargan cuando se establece el usuario
+        gestorGit = new ControladorGit(
+                this::mostrarAlerta,
+                () -> {
+                    File resultado = exportarCatalogoHTML();
+                    return resultado != null;
+                }
+        );
+        gestorGit.limpiarCarpetasTemporalesPendientes();
+        configurarColumnasTablaCompleta();
+    }
+
+    private void verificarConfiguracionColumnas() {
+        System.out.println("=== VERIFICANDO CONFIGURACIÓN DE COLUMNAS ===");
+        System.out.println("Número de columnas: " + tablaProductos.getColumns().size());
+
+        for (int i = 0; i < tablaProductos.getColumns().size(); i++) {
+            TableColumn<?, ?> col = tablaProductos.getColumns().get(i);
+            System.out.println("Columna " + i + ": " + col.getText()
+                    + " - CellFactory: " + col.getCellFactory()
+                    + " - CellValueFactory: " + col.getCellValueFactory());
+        }
+
+        // Verificar datos de muestra
+        if (productosData != null && !productosData.isEmpty()) {
+            Producto primerProducto = productosData.get(0);
+            System.out.println("Primer producto - Precio: " + primerProducto.getPrecio()
+                    + " - Formateado: " + formatoPesosColombianos(primerProducto.getPrecio()));
+        }
+    }
+
+    private void configurarColumnasTablaCompleta() {
+        // Limpiar columnas existentes
+        tablaProductos.getColumns().clear();
+
+        // Columna NOMBRE
+        TableColumn<Producto, String> colNombre = new TableColumn<>("Producto");
+        colNombre.setCellValueFactory(new PropertyValueFactory<>("nombre"));
+        colNombre.setPrefWidth(171);
+
+        // Columna PRECIO - CON FORMATEO
+        TableColumn<Producto, Double> colPrecio = new TableColumn<>("Precio");
+        colPrecio.setCellValueFactory(new PropertyValueFactory<>("precio"));
+        colPrecio.setCellFactory(column -> new TableCell<Producto, Double>() {
+            @Override
+            protected void updateItem(Double precio, boolean empty) {
+                super.updateItem(precio, empty);
+                if (empty || precio == null) {
+                    setText(null);
+                } else {
+                    // Formateo garantizado
+                    setText(formatoPesosColombianosGarantizado(precio));
+                }
+            }
+        });
+        colPrecio.setPrefWidth(172);
+
+        // Columna STOCK
+        TableColumn<Producto, Integer> colStock = new TableColumn<>("Stock");
+        colStock.setCellValueFactory(new PropertyValueFactory<>("cantidadDisponible"));
+        colStock.setPrefWidth(163);
+
+        // Columna CATEGORÍA
+        TableColumn<Producto, String> colCategoria = new TableColumn<>("Categoría");
+        colCategoria.setCellValueFactory(new PropertyValueFactory<>("categoria"));
+        colCategoria.setPrefWidth(202);
+
+        // Agregar todas las columnas
+        tablaProductos.getColumns().addAll(colNombre, colPrecio, colStock, colCategoria);
+    }
+
+    /**
+     * Formateo 100% garantizado para pesos colombianos
+     */
+    private String formatoPesosColombianosGarantizado(double precio) {
+        long precioLong = (long) precio;
+
+        // Formatear manualmente con separadores de miles
+        String precioStr = String.valueOf(precioLong);
+        StringBuilder resultado = new StringBuilder("$");
+
+        int longitud = precioStr.length();
+        for (int i = 0; i < longitud; i++) {
+            resultado.append(precioStr.charAt(i));
+            // Agregar punto cada 3 dígitos (excepto al final)
+            if ((longitud - i - 1) % 3 == 0 && i < longitud - 1) {
+                resultado.append('.');
+            }
+        }
+
+        return resultado.toString();
+    }
+
+    private void configurarColumnasTabla() {
+        // Configurar el cellFactory para la columna de precio
+        if (colPrecio != null) {
+            colPrecio.setCellFactory(column -> new TableCell<Producto, Double>() {
+                @Override
+                protected void updateItem(Double precio, boolean empty) {
+                    super.updateItem(precio, empty);
+                    if (empty || precio == null) {
+                        setText(null);
+                    } else {
+                        setText(formatoPesosColombianos(precio));
+                    }
+                }
+            });
+        } else {
+            System.err.println("❌ colPrecio es null - verifica el fx:id en el FXML");
+        }
+    }
+
+    /**
+     * Formatea un valor double a formato pesos colombianos Ejemplo: 100000 ->
+     * "$100.000", 2500 -> "$2.500"
+     */
+    private String formatoPesosColombianos(double precio) {
+        try {
+            // Formateo directo y simple
+            long precioEntero = (long) precio;
+            String precioStr = String.valueOf(precioEntero);
+
+            // Agregar separadores de miles
+            StringBuilder sb = new StringBuilder();
+            int contador = 0;
+
+            for (int i = precioStr.length() - 1; i >= 0; i--) {
+                if (contador == 3) {
+                    sb.append('.');
+                    contador = 0;
+                }
+                sb.append(precioStr.charAt(i));
+                contador++;
+            }
+
+            return "$" + sb.reverse().toString();
+
+        } catch (Exception e) {
+            // Fallback
+            return "$" + String.format("%,.0f", precio).replace(",", ".");
+        }
     }
 
     /**
@@ -118,6 +267,7 @@ public class ControladorDashboard implements Initializable {
             try {
                 productosData = ControladorBD.obtenerProductosPorUsuario(usuarioLogueado.getId());
                 tablaProductos.setItems(productosData);
+                tablaProductos.refresh();
             } catch (Exception e) {
                 mostrarAlerta("Error", "No se pudieron cargar los productos: " + e.getMessage());
             }
@@ -177,39 +327,38 @@ public class ControladorDashboard implements Initializable {
                 mostrarAlerta("Error", "El nombre del producto es obligatorio");
                 return;
             }
-
             if (precioText.isEmpty()) {
                 mostrarAlerta("Error", "El precio es obligatorio");
                 return;
             }
-
             if (stockText.isEmpty()) {
                 mostrarAlerta("Error", "El stock es obligatorio");
                 return;
             }
-
             if (categoria.isEmpty()) {
                 mostrarAlerta("Error", "La categoría es obligatoria");
                 return;
             }
 
-            // Convertir y validar números
-            double precio = Double.parseDouble(precioText);
-            int stock = Integer.parseInt(stockText);
+            // ✅ CONVERSIÓN MEJORADA DEL PRECIO - ACEPTA CON Y SIN PUNTO
+            double precio = convertirPrecioTextoANumero(precioText);
 
             if (precio <= 0) {
                 mostrarAlerta("Error", "El precio debe ser mayor a 0");
                 return;
             }
 
+            int stock = Integer.parseInt(stockText.replace(".", "")); // También quitar puntos del stock
+
             if (stock < 0) {
                 mostrarAlerta("Error", "El stock no puede ser negativo");
                 return;
             }
 
+            // ... el resto del código permanece igual
             Producto producto;
             if (editandoProducto) {
-                // Modo edición - actualizar producto existente
+                // Modo edición
                 producto = productoEditando;
                 producto.setNombre(nombre);
                 producto.setDescripcion(descripcion);
@@ -217,18 +366,17 @@ public class ControladorDashboard implements Initializable {
                 producto.setCantidadDisponible(stock);
                 producto.setCategoria(categoria);
 
-                // ACTUALIZAR EN BASE DE DATOS
                 boolean exito = ControladorBD.actualizarProducto(producto);
 
                 if (exito) {
                     mostrarAlerta("Éxito", "Producto actualizado correctamente");
-                    tablaProductos.refresh(); // Actualizar tabla
+                    tablaProductos.refresh();
                 } else {
                     mostrarAlerta("Error", "No se pudo actualizar el producto");
                     return;
                 }
             } else {
-                // Modo nuevo - crear producto
+                // Modo nuevo
                 producto = new Producto(usuarioLogueado.getId(), nombre, descripcion, precio, stock, categoria);
                 boolean exito = ControladorBD.agregarProducto(producto);
 
@@ -240,16 +388,51 @@ public class ControladorDashboard implements Initializable {
                 }
             }
 
-            // Actualizar la interfaz
             ocultarFormulario();
             cargarProductos();
             generarCatalogo();
 
         } catch (NumberFormatException e) {
-            mostrarAlerta("Error", "Precio y stock deben ser números válidos");
+            mostrarAlerta("Error", "Formato de precio inválido. Use: 100000 o 100.000");
         } catch (Exception e) {
             mostrarAlerta("Error", "Error inesperado: " + e.getMessage());
         }
+    }
+
+    /**
+     * Convierte texto de precio a número, aceptando ambos formatos: - Con
+     * punto: "100.000" → 100000.0 - Sin punto: "100000" → 100000.0 - Con
+     * decimales: "100.500,50" → 100500.50
+     */
+    private double convertirPrecioTextoANumero(String precioText) {
+        if (precioText == null || precioText.trim().isEmpty()) {
+            throw new NumberFormatException("Precio vacío");
+        }
+
+        String textoLimpio = precioText.trim();
+
+        // Remover símbolos de moneda si existen
+        textoLimpio = textoLimpio.replace("$", "").replace("€", "").replace("COP", "").trim();
+
+        // Verificar si el texto contiene punto como separador de miles
+        if (textoLimpio.contains(".") && textoLimpio.contains(",")) {
+            // Formato: "1.000,50" → punto para miles, coma para decimales
+            textoLimpio = textoLimpio.replace(".", "").replace(",", ".");
+        } else if (textoLimpio.contains(".") && !textoLimpio.contains(",")) {
+            // Formato: "1.000" o "1.000.000" → solo puntos (separador de miles)
+            // Contar cuántos puntos hay para determinar si es decimal o separador de miles
+            long countPuntos = textoLimpio.chars().filter(ch -> ch == '.').count();
+            if (countPuntos == 1) {
+                // Podría ser decimal o miles, asumimos miles
+                textoLimpio = textoLimpio.replace(".", "");
+            } else {
+                // Múltiples puntos = separadores de miles
+                textoLimpio = textoLimpio.replace(".", "");
+            }
+        }
+
+        // Ahora convertir a double
+        return Double.parseDouble(textoLimpio);
     }
 
     /**
@@ -284,7 +467,7 @@ public class ControladorDashboard implements Initializable {
                 Image image = new Image(tempFile.toURI().toString());
                 ClipboardContent content = new ClipboardContent();
                 content.putImage(image);
-                content.putString(areaCatalogo.getText()); 
+                content.putString(areaCatalogo.getText());
 
                 Clipboard.getSystemClipboard().setContent(content);
 
@@ -334,7 +517,6 @@ public class ControladorDashboard implements Initializable {
         }
     }
 
-  
     /**
      * Elimina el producto seleccionado de la tabla Y de la base de datos
      */
@@ -378,7 +560,7 @@ public class ControladorDashboard implements Initializable {
      */
     @FXML
     private void manejarClickTabla(javafx.scene.input.MouseEvent event) {
-        if (event.getClickCount() == 2) { 
+        if (event.getClickCount() == 2) {
             editarProducto();
         }
     }
@@ -399,6 +581,7 @@ public class ControladorDashboard implements Initializable {
                 Parent root = loader.load();
                 Stage stage = (Stage) lblUsuario.getScene().getWindow();
                 stage.setScene(new Scene(root));
+                stage.centerOnScreen();
                 stage.setTitle("Iniciar Sesión - Impulsa360");
             }
         } catch (Exception e) {
@@ -522,8 +705,7 @@ public class ControladorDashboard implements Initializable {
                     + "📤 Abriendo WhatsApp para responder...");
 
             abrirWhatsAppConCatalogo(numeroCliente);
-        } 
-        else if (mensajeUpper.startsWith("RESERVAR")) {
+        } else if (mensajeUpper.startsWith("RESERVAR")) {
             boolean exito = procesarReservaAutomatica(numeroCliente, mensajeUpper);
 
             if (exito) {
@@ -682,29 +864,19 @@ public class ControladorDashboard implements Initializable {
             return false;
         }
     }
-    
-    
-    
-    
-    
-    //    FIN SIMULACIONNN
-        //    FIN SIMULACIONNN
-    //    FIN SIMULACIONNN
 
-        //    FIN SIMULACIONNN
     //    FIN SIMULACIONNN
-
-    
-    
-    
-
+    //    FIN SIMULACIONNN
+    //    FIN SIMULACIONNN
+    //    FIN SIMULACIONNN
+    //    FIN SIMULACIONNN
     @FXML
     private void generarCatalogoVisual() {
         try {
             // Limpiar el contenedor
             contenedorCatalogoVisual.getChildren().clear();
 
-            // Obtener productos del usuario actual - CORREGIDO: usar usuarioLogueado
+            // Obtener productos del usuario actual
             List<Producto> productos = ControladorBD.obtenerProductosPorUsuario(usuarioLogueado.getId());
 
             if (productos.isEmpty()) {
@@ -714,13 +886,35 @@ public class ControladorDashboard implements Initializable {
                 return;
             }
 
+            // ✅ CORREGIDO: Crear GridPane para organizar las tarjetas
+            GridPane gridProductos = new GridPane();
+            gridProductos.setHgap(20);
+            gridProductos.setVgap(20);
+            gridProductos.setPadding(new javafx.geometry.Insets(15));
+
+            int columna = 0;
+            int fila = 0;
+            int maxColumnas = 2; // Máximo 2 columnas
+
             // Crear tarjetas para cada producto
             for (Producto producto : productos) {
                 if (producto.isDisponible() && producto.getCantidadDisponible() > 0) {
                     VBox tarjetaProducto = crearTarjetaProductoVisual(producto);
-                    contenedorCatalogoVisual.getChildren().add(tarjetaProducto);
+
+                    // ✅ CORREGIDO: Agregar al grid en lugar de directamente al contenedor
+                    gridProductos.add(tarjetaProducto, columna, fila);
+
+                    // Mover a la siguiente columna/fila
+                    columna++;
+                    if (columna >= maxColumnas) {
+                        columna = 0;
+                        fila++;
+                    }
                 }
             }
+
+            // ✅ CORREGIDO: Agregar el grid al contenedor
+            contenedorCatalogoVisual.getChildren().add(gridProductos);
 
             // Mostrar mensaje de éxito
             Alert alert = new Alert(Alert.AlertType.INFORMATION);
@@ -731,6 +925,282 @@ public class ControladorDashboard implements Initializable {
 
         } catch (Exception e) {
             mostrarAlerta("Error", "No se pudo generar el catálogo visual: " + e.getMessage());
+        }
+    }
+
+    private void crearHTMLDelCatalogo(File file) {
+        try {
+            StringBuilder html = new StringBuilder();
+
+            html.append("""
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catálogo de Productos - Impulsa360</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .header {
+            text-align: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 20px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: bold;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        /* ✅ GRID DE 2 COLUMNAS - SIMÉTRICO */
+        .productos-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            padding: 30px;
+            margin: 0 auto;
+        }
+        .producto-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            transition: all 0.3s ease;
+            border: 1px solid #e9ecef;
+            position: relative;
+            overflow: hidden;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            height: fit-content;
+            min-height: 550px; /* ✅ ALTURA MÍNIMA PARA SIMETRÍA */
+        }
+        .producto-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.2);
+        }
+         .producto-imagen-container {
+                    text-align: center;
+                    margin: 0 auto 20px auto;
+                    width: 100%;
+                    height: 350px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    overflow: hidden;
+                    border-radius: 12px;
+                    background: #f8f9fa; /* ✅ FONDO NEUTRO */
+                    border: 2px solid #e9ecef;
+                }
+                .producto-imagen {
+                    max-width: 100%;
+                    max-height: 100%;
+                    width: auto;
+                    height: auto;
+                    object-fit: contain; 
+                    border-radius: 10px;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                }
+                .producto-imagen-placeholder {
+                    width: 100%;
+                    height: 100%;
+                    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+                    border-radius: 12px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: white;
+                    font-weight: bold;
+                    font-size: 1.2em;
+                    border: 3px dashed #dee2e6;
+                    text-align: center;
+                    padding: 20px;
+                }
+        .producto-info {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .producto-nombre {
+            font-weight: bold;
+            font-size: 1.4em;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            line-height: 1.3;
+        }
+        .producto-precio {
+            font-size: 1.3em;
+            color: #e74c3c;
+            font-weight: bold;
+            margin: 8px 0;
+        }
+        .producto-stock {
+            font-size: 1.1em;
+            color: #27ae60;
+            margin: 5px 0;
+        }
+        .producto-categoria {
+            font-size: 1.1em;
+            color: #9b59b6;
+            margin: 5px 0;
+        }
+        .producto-descripcion {
+            font-size: 1em;
+            color: #7f8c8d;
+            margin: 10px 0;
+            line-height: 1.4;
+            flex-grow: 1;
+        }
+        /* ✅ CONTENEDOR DE BOTONES FIJO EN LA PARTE INFERIOR */
+        .botones-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: auto;
+            width: 100%;
+        }
+        .boton-whatsapp {
+            background: linear-gradient(135deg, #25D366, #128C7E);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3);
+            border: none;
+            cursor: pointer;
+            width: 100%;
+            text-align: center;
+            display: block;
+            box-sizing: border-box;
+        }
+        .boton-whatsapp:hover {
+            background: linear-gradient(135deg, #128C7E, #25D366);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(37, 211, 102, 0.4);
+            text-decoration: none;
+            color: white;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 30px;
+            background: #f8f9fa;
+            color: #6c757d;
+            border-top: 1px solid #dee2e6;
+        }
+        /* ✅ RESPONSIVE */
+        @media (max-width: 768px) {
+            .productos-grid {
+                grid-template-columns: 1fr;
+                padding: 15px;
+                gap: 25px;
+            }
+            .header h1 {
+                font-size: 2em;
+            }
+            .producto-imagen-container {
+                height: 200px;
+            }
+            .producto-imagen-placeholder {
+                font-size: 1em;
+            }
+            .botones-container {
+                flex-direction: column;
+                gap: 10px;
+                margin-top: 15px;
+            }
+            .boton-whatsapp {
+                width: 100%;
+                padding: 16px 10px;
+                font-size: 16px;
+                min-height: 50px;
+            }
+            .producto-card {
+                padding: 20px;
+                margin: 0 5px;
+                min-height: 500px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛍️ Catálogo de Productos</h1>
+            <p>Impulsa360 - Emprendimientos Sociales</p>
+""");
+
+            // Información del usuario
+            if (usuarioLogueado != null) {
+                html.append("<p><strong>Emprendedor:</strong> ").append(escapeHTML(usuarioLogueado.getNombreCompleto())).append("</p>");
+            }
+
+            html.append("""
+        </div>
+        <div class="productos-grid">
+            """);
+
+            int contador = 0;
+            for (javafx.scene.Node node : contenedorCatalogoVisual.getChildren()) {
+                if (node instanceof GridPane) {
+                    GridPane grid = (GridPane) node;
+                    for (javafx.scene.Node child : grid.getChildren()) {
+                        if (child instanceof VBox) {
+                            VBox tarjeta = (VBox) child;
+                            String productoHTML = crearHTMLProductoConRutaRelativa(tarjeta, ++contador);
+                            html.append(productoHTML);
+                        }
+                    }
+                }
+            }
+
+            // Pie de página
+            html.append("""
+        </div>
+        <div class="footer">
+            <p>📅 Generado el: """)
+                    .append(java.time.LocalDate.now())
+                    .append(" | 🛍️ Total productos: ")
+                    .append(contador)
+                    .append("""
+        </p>
+            <p>✨ Impulsa360 - Plataforma para Fundaciones y Emprendedores Sociales</p>
+        </div>
+    </div>
+</body>
+</html>
+""");
+
+            // Guardar archivo
+            java.nio.file.Files.write(file.toPath(), html.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        } catch (Exception e) {
+            throw new RuntimeException("Error creando HTML del catálogo: " + e.getMessage(), e);
         }
     }
 
@@ -1073,7 +1543,6 @@ public class ControladorDashboard implements Initializable {
             StringBuilder productoHTML = new StringBuilder();
             productoHTML.append("<div class=\"producto-card\">\n");
 
-            // Extraer información de la tarjeta
             String nombre = "";
             String precio = "";
             String stock = "";
@@ -1104,6 +1573,7 @@ public class ControladorDashboard implements Initializable {
 
                     if (imagenFX != null) {
                         try {
+                            // ✅ CONVERSIÓN IDÉNTICA AL CÓDIGO DE CURSOS
                             java.awt.image.BufferedImage bufferedImage = SwingFXUtils.fromFXImage(imagenFX, null);
                             java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
                             javax.imageio.ImageIO.write(bufferedImage, "png", baos);
@@ -1115,45 +1585,57 @@ public class ControladorDashboard implements Initializable {
                     }
                 }
             }
+            productoHTML.append("<div class=\"estado-activo\">✅ DISPONIBLE</div>\n");
+            if (!imagenBase64.isEmpty()) {
+                productoHTML.append("<div class=\"producto-imagen-container\">\n");
+                productoHTML.append("<img src=\"data:image/png;base64,")
+                        .append(imagenBase64)
+                        .append("\" class=\"producto-imagen\" alt=\"")
+                        .append(escapeHTML(nombre))
+                        .append("\">\n");
+                productoHTML.append("</div>\n");
+            } else {
+                productoHTML.append("<div class=\"producto-imagen-container\">\n");
+                productoHTML.append("<div class=\"producto-imagen-placeholder\">🛒 Producto<br>").append(escapeHTML(nombre)).append("</div>\n");
+                productoHTML.append("</div>\n");
+            }
 
-            // Número y nombre
             productoHTML.append("<div class=\"producto-nombre\">")
                     .append(numero).append(". ").append(escapeHTML(nombre))
                     .append("</div>\n");
 
-            // Imagen
-            if (!imagenBase64.isEmpty()) {
-                productoHTML.append("<img src=\"data:image/png;base64,")
-                        .append(imagenBase64)
-                        .append("\" class=\"producto-imagen\" alt=\"").append(escapeHTML(nombre)).append("\">\n");
-            } else {
-                productoHTML.append("<div class=\"producto-imagen\" style=\"background:#e9ecef; display:flex; align-items:center; justify-content:center; color:#6c757d;\">[Sin imagen]</div>\n");
-            }
-
-            // Precio
-            if (!precio.isEmpty()) {
-                productoHTML.append("<div class=\"producto-precio\">💰 Precio: ").append(escapeHTML(precio)).append("</div>\n");
-            }
-
-            // Stock
-            if (!stock.isEmpty()) {
-                productoHTML.append("<div class=\"producto-stock\">📦 ").append(escapeHTML(stock)).append("</div>\n");
-            }
-
-            // Categoría
             if (!categoria.isEmpty()) {
                 productoHTML.append("<div class=\"producto-categoria\">🏷️ ").append(escapeHTML(categoria)).append("</div>\n");
             }
 
-            // Descripción
+            if (!precio.isEmpty()) {
+                productoHTML.append("<div class=\"producto-precio\">💰 ").append(escapeHTML(precio)).append("</div>\n");
+            }
+
+            if (!stock.isEmpty()) {
+                productoHTML.append("<div class=\"producto-stock\">📦 ").append(escapeHTML(stock)).append("</div>\n");
+            }
+
             if (!descripcion.isEmpty()) {
                 productoHTML.append("<div class=\"producto-descripcion\">📝 ").append(escapeHTML(descripcion)).append("</div>\n");
             }
+            productoHTML.append("<div class=\"botones-container\">\n");
 
-            // BOTÓN DE WHATSAPP 
-            productoHTML.append(crearBotonWhatsApp(nombre, precio, numero));
+            String numeroWhatsApp = "+573127125150";
+            String mensajeWhatsApp = "Hola! Estoy interesado en el producto: " + escapeHTML(nombre) + " - Precio: " + escapeHTML(precio);
+            String enlaceWhatsApp = "https://wa.me/" + numeroWhatsApp.replace("+", "") + "?text="
+                    + java.net.URLEncoder.encode(mensajeWhatsApp, "UTF-8");
+
+            productoHTML.append("<a href=\"").append(enlaceWhatsApp)
+                    .append("\" target=\"_blank\" class=\"boton-whatsapp\" title=\"Consultar por WhatsApp sobre: ")
+                    .append(escapeHTML(nombre))
+                    .append("\">")
+                    .append("💬 Consultar")
+                    .append("</a>\n");
 
             productoHTML.append("</div>\n");
+            productoHTML.append("</div>\n");
+
             return productoHTML.toString();
 
         } catch (Exception e) {
@@ -1223,210 +1705,327 @@ public class ControladorDashboard implements Initializable {
                 .replace("'", "&#39;");
     }
 
-    private void crearHTMLDelCatalogo(File file) {
+    @FXML
+    private File exportarCatalogoHTML() {
         try {
-            StringBuilder html = new StringBuilder();
-
-            // Encabezado HTML con estilos
-            html.append("""
-            <!DOCTYPE html>
-            <html lang="es">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Catálogo - Impulsa360</title>
-                <style>
-                    body {
-                        font-family: 'Arial', sans-serif;
-                        margin: 0;
-                        padding: 20px;
-                        background-color: #f8f9fa;
-                    }
-                    .header {
-                        text-align: center;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        color: white;
-                        padding: 30px;
-                        border-radius: 10px;
-                        margin-bottom: 30px;
-                    }
-                    .catalogo-grid {
-                        display: grid;
-                        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-                        gap: 20px;
-                        max-width: 1200px;
-                        margin: 0 auto;
-                    }
-                    .producto-card {
-                        background: white;
-                        border-radius: 10px;
-                        padding: 20px;
-                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                        transition: transform 0.3s ease;
-                    }
-                    .producto-card:hover {
-                        transform: translateY(-5px);
-                    }
-                    .producto-imagen {
-                        width: 100%;
-                        max-width: 250px;
-                        height: 180px;
-                        object-fit: cover;
-                        border-radius: 8px;
-                        display: block;
-                        margin: 0 auto 15px;
-                        border: 2px solid #e9ecef;
-                    }
-                    .producto-nombre {
-                        font-size: 18px;
-                        font-weight: bold;
-                        color: #2c3e50;
-                        margin-bottom: 10px;
-                    }
-                    .producto-precio {
-                        font-size: 16px;
-                        color: #27ae60;
-                        font-weight: bold;
-                        margin-bottom: 5px;
-                    }
-                    .producto-stock {
-                        font-size: 14px;
-                        color: #3498db;
-                        margin-bottom: 5px;
-                    }
-                    .producto-categoria {
-                        font-size: 12px;
-                        color: #7f8c8d;
-                        margin-bottom: 10px;
-                    }
-                    .producto-descripcion {
-                        font-size: 13px;
-                        color: #5a6c7d;
-                        font-style: italic;
-                        line-height: 1.4;
-                    }
-                    .footer {
-                        text-align: center;
-                        margin-top: 40px;
-                        padding: 20px;
-                        color: #6c757d;
-                        font-size: 12px;
-                    }
-                    /* Botón de WhatsApp */
-                    .boton-whatsapp {
-                        display: inline-block;
-                        background: linear-gradient(135deg, #25D366, #128C7E);
-                        color: white;
-                        padding: 12px 20px;
-                        border-radius: 25px;
-                        text-decoration: none;
-                        font-weight: bold;
-                        font-size: 14px;
-                        transition: all 0.3s ease;
-                        box-shadow: 0 4px 8px rgba(37, 211, 102, 0.3);
-                        border: none;
-                        cursor: pointer;
-                        margin-top: 10px;
-                        width: 75%;
-                        text-align: center;
-                    }
-                    .boton-whatsapp:hover {
-                        background: linear-gradient(135deg, #128C7E, #25D366);
-                        transform: translateY(-2px);
-                        box-shadow: 0 6px 12px rgba(37, 211, 102, 0.4);
-                    }
-                    .boton-whatsapp:active {
-                        transform: translateY(0);
-                    }
-                    @media (max-width: 768px) {
-                        .catalogo-grid {
-                            grid-template-columns: 1fr;
-                        }
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <h1>🛍️ Mi Catálogo de Productos</h1>
-                    <p>Impulsa360 - Emprendimiento Digital</p>
-            """);
-
-            // Información del emprendedor
-            if (usuarioLogueado != null) {
-                html.append("<p><strong>Emprendedor:</strong> ").append(usuarioLogueado.getNombreCompleto()).append("</p>");
+            if (contenedorCatalogoVisual.getChildren().isEmpty()) {
+                mostrarAlerta("Error", "Primero genera el catálogo visual");
+                return null;
             }
+            File carpetaWeb = new File(System.getProperty("user.home") + "/Desktop/catalogo_productos_web");
+            File carpetaImagenes = new File(carpetaWeb, "imagenes_productos");
+            carpetaImagenes.mkdirs();
 
-            html.append("""
-                </div>
-                <div class="catalogo-grid">
-            """);
+            // ✅ VERIFICAR QUE SE EJECUTE
+            System.out.println("=== INICIANDO EXPORTACIÓN ===");
+            int totalImagenes = copiarImagenesDeProductos(carpetaImagenes);
+            System.out.println("Imágenes procesadas: " + totalImagenes);
 
-            // Procesar cada producto
-            int contador = 0;
+            File htmlFile = new File(carpetaWeb, "index.html");
+            crearHTMLDelCatalogo(htmlFile);
+
+            // ✅ MOSTRAR RESULTADO REAL
+            mostrarAlerta("Éxito", "📁 Carpeta 'catalogo_productos_web' generada con:\n"
+                    + "• index.html\n"
+                    + "• imagenes/ (con " + totalImagenes + " imágenes)\n\n"
+                    + "¡Las imágenes " + (totalImagenes > 0 ? "SÍ" : "NO") + " se copiaron!");
+
+            return carpetaWeb;
+        } catch (Exception e) {
+            mostrarAlerta("Error", "No se pudo exportar el catálogo: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private int copiarImagenesDeProductos(File carpetaImagenes) {
+        int numero = 1;
+        int imagenesCopiadas = 0;
+
+        try {
+            // ✅ VERIFICAR QUE EL MÉTODO SE EJECUTA
+            System.out.println("=== COPIANDO IMÁGENES ===");
+            System.out.println("Carpeta destino: " + carpetaImagenes.getAbsolutePath());
+
             for (javafx.scene.Node node : contenedorCatalogoVisual.getChildren()) {
-                if (node instanceof VBox) {
-                    VBox tarjeta = (VBox) node;
-                    String productoHTML = crearHTMLProducto(tarjeta, ++contador);
-                    if (productoHTML != null) {
-                        html.append(productoHTML);
+                if (node instanceof GridPane) {
+                    GridPane grid = (GridPane) node;
+                    for (javafx.scene.Node child : grid.getChildren()) {
+                        if (child instanceof VBox) {
+                            VBox tarjeta = (VBox) child;
+                            ImageView imageView = obtenerImageViewDeTarjeta(tarjeta);
+
+                            System.out.println("Procesando producto " + numero + " - ImageView: " + (imageView != null));
+                            System.out.println("Tiene imagen: " + (imageView != null && imageView.getImage() != null));
+
+                            if (imageView != null && imageView.getImage() != null) {
+                                try {
+                                    // ✅ CONVERTIR A JPG PARA CONSISTENCIA
+                                    java.awt.image.BufferedImage bufferedImage = SwingFXUtils.fromFXImage(imageView.getImage(), null);
+
+                                    // ✅ CREAR NUEVA IMAGEN CON FONDO BLANCO (evita fondos negros)
+                                    java.awt.image.BufferedImage nuevaImagen = new java.awt.image.BufferedImage(
+                                            bufferedImage.getWidth(),
+                                            bufferedImage.getHeight(),
+                                            java.awt.image.BufferedImage.TYPE_INT_RGB
+                                    );
+
+                                    java.awt.Graphics2D g2d = nuevaImagen.createGraphics();
+                                    g2d.setColor(java.awt.Color.WHITE);
+                                    g2d.fillRect(0, 0, bufferedImage.getWidth(), bufferedImage.getHeight());
+                                    g2d.drawImage(bufferedImage, 0, 0, null);
+                                    g2d.dispose();
+
+                                    // ✅ GUARDAR COMO JPG
+                                    File imagenDestino = new File(carpetaImagenes, "producto" + numero + ".jpg");
+                                    javax.imageio.ImageIO.write(nuevaImagen, "jpg", imagenDestino);
+
+                                    System.out.println("✅ Imagen guardada: " + imagenDestino.getName());
+                                    imagenesCopiadas++;
+
+                                } catch (Exception e) {
+                                    System.err.println("❌ Error copiando imagen producto " + numero + ": " + e.getMessage());
+                                    // Intentar método simple como fallback
+                                    try {
+                                        java.awt.image.BufferedImage bufferedImage = SwingFXUtils.fromFXImage(imageView.getImage(), null);
+                                        File imagenDestino = new File(carpetaImagenes, "producto" + numero + ".jpg");
+                                        javax.imageio.ImageIO.write(bufferedImage, "jpg", imagenDestino);
+                                        imagenesCopiadas++;
+                                        System.out.println("✅ Imagen guardada (fallback): " + imagenDestino.getName());
+                                    } catch (Exception ex) {
+                                        System.err.println("❌ Fallback también falló: " + ex.getMessage());
+                                    }
+                                }
+                            } else {
+                                System.out.println("❌ Producto " + numero + " no tiene imagen");
+                            }
+                            numero++;
+                        }
                     }
                 }
             }
 
-            // Pie de página
-            html.append("""
-                </div>
-                <div class="footer">
-                    <p>📅 Generado el: """)
-                    .append(java.time.LocalDate.now())
-                    .append(" | 📦 Total productos: ")
-                    .append(contador)
-                    .append("""
-                   </p>
-                    <p>✨ Creado con Impulsa360 - Plataforma para Emprendedores</p>
-                </div>
-            </body>
-            </html>
-            """);
-
-            // Guardar archivo
-            java.nio.file.Files.write(file.toPath(), html.toString().getBytes());
+            System.out.println("=== TOTAL IMÁGENES COPIADAS: " + imagenesCopiadas + " ===");
 
         } catch (Exception e) {
-            throw new RuntimeException("Error creando HTML: " + e.getMessage(), e);
+            System.err.println("❌ Error general procesando tarjetas: " + e.getMessage());
         }
+
+        return imagenesCopiadas;
+    }
+
+    private String crearHTMLProductoConRutaRelativa(VBox tarjetaProducto, int numero) {
+        try {
+            StringBuilder productoHTML = new StringBuilder();
+            productoHTML.append("<div class=\"producto-card\">\n");
+
+            // ✅ 1. EXTRAER LA INFORMACIÓN DEL PRODUCTO
+            String nombreProducto = "Producto";
+            String categoria = "Categoría";
+            String precio = "$0";
+            String stock = "0 unidades";
+            String descripcion = "Descripción";
+            String rutaImagen = null;
+
+            // Extraer datos de los labels dentro del VBox
+            for (javafx.scene.Node node : tarjetaProducto.getChildren()) {
+                if (node instanceof Label) {
+                    Label label = (Label) node;
+                    String texto = label.getText();
+                    if (texto != null) {
+                        if (texto.startsWith("🛒")) {
+                            nombreProducto = texto.substring(2).trim();
+                        } else if (texto.startsWith("🏷️")) {
+                            categoria = texto.substring(2).trim();
+                        } else if (texto.startsWith("💰")) {
+                            precio = texto.substring(2).trim();
+                        } else if (texto.startsWith("📦")) {
+                            stock = texto.substring(2).trim();
+                        } else if (texto.startsWith("📝")) {
+                            descripcion = texto.substring(2).trim();
+                        }
+                    }
+                }
+            }
+
+            // ✅ 2. BUSCAR EL ImageView PARA LA IMAGEN REAL
+            ImageView imageView = null;
+            for (javafx.scene.Node node : tarjetaProducto.getChildren()) {
+                if (node instanceof ImageView) {
+                    imageView = (ImageView) node;
+                    break;
+                }
+                if (node instanceof HBox) {
+                    HBox hbox = (HBox) node;
+                    for (javafx.scene.Node child : hbox.getChildren()) {
+                        if (child instanceof ImageView) {
+                            imageView = (ImageView) child;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // ✅ 3. GENERAR HTML CON IMAGEN REAL O PLACEHOLDER
+            if (imageView != null && imageView.getImage() != null) {
+                // ✅ IMAGEN REAL - usar ruta relativa para GitHub Pages
+                productoHTML.append("<div class=\"producto-imagen-container\">\n");
+                productoHTML.append("<img src=\"imagenes_productos/producto")
+                        .append(numero)
+                        .append(".jpg\" class=\"producto-imagen\" alt=\"")
+                        .append(escapeHTML(nombreProducto))
+                        .append("\">\n");
+                productoHTML.append("</div>\n");
+            } else {
+                // ❌ PLACEHOLDER (solo si no hay imagen)
+                productoHTML.append("<div class=\"producto-imagen-container\">\n");
+                productoHTML.append("<div class=\"producto-imagen-placeholder\">🛒 Producto<br>")
+                        .append(escapeHTML(nombreProducto))
+                        .append("</div>\n");
+                productoHTML.append("</div>\n");
+            }
+
+            // ✅ 4. INFORMACIÓN DEL PRODUCTO
+            productoHTML.append("<div class=\"producto-info\">\n");
+            productoHTML.append("<div class=\"producto-nombre\">").append(numero).append(". ").append(escapeHTML(nombreProducto)).append("</div>\n");
+            productoHTML.append("<div class=\"producto-categoria\">🏷️ ").append(escapeHTML(categoria)).append("</div>\n");
+            productoHTML.append("<div class=\"producto-precio\">💰 ").append(escapeHTML(precio)).append("</div>\n");
+            productoHTML.append("<div class=\"producto-stock\">📦 ").append(escapeHTML(stock)).append("</div>\n");
+            productoHTML.append("<div class=\"producto-descripcion\">📝 ").append(escapeHTML(descripcion)).append("</div>\n");
+            productoHTML.append("</div>\n");
+
+            // ✅ 5. BOTÓN DE WHATSAPP
+            String mensajeWhatsApp = "Hola! Estoy interesado en el producto: " + nombreProducto + " - Precio: " + precio;
+            String enlaceWhatsApp = "https://wa.me/573127125150?text=" + java.net.URLEncoder.encode(mensajeWhatsApp, "UTF-8");
+
+            productoHTML.append("<div class=\"botones-container\">\n");
+            productoHTML.append("<a href=\"").append(enlaceWhatsApp)
+                    .append("\" target=\"_blank\" class=\"boton-whatsapp\" title=\"Consultar por WhatsApp sobre: ")
+                    .append(escapeHTML(nombreProducto))
+                    .append("\">💬 Consultar por WhatsApp</a>\n");
+            productoHTML.append("</div>\n");
+
+            productoHTML.append("</div>\n");
+            return productoHTML.toString();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "<div class=\"producto-card\">Error generando producto</div>";
+        }
+    }
+
+    /**
+     * OBTIENE EL ImageView DE UNA TARJETA DE PRODUCTO
+     */
+    private ImageView obtenerImageViewDeTarjeta(VBox tarjeta) {
+        try {
+            System.out.println("=== BUSCANDO IMAGEVIEW ===");
+            System.out.println("Número de hijos en tarjeta: " + tarjeta.getChildren().size());
+
+            int contador = 0;
+            for (javafx.scene.Node node : tarjeta.getChildren()) {
+                System.out.println("Hijo " + contador + ": " + node.getClass().getSimpleName());
+                if (node instanceof ImageView) {
+                    ImageView imageView = (ImageView) node;
+                    System.out.println("✅ ImageView encontrado - Imagen: " + (imageView.getImage() != null));
+                    return imageView;
+                }
+                contador++;
+            }
+
+            System.out.println("❌ No se encontró ImageView en la tarjeta");
+            return null;
+
+        } catch (Exception e) {
+            System.err.println("❌ Error obteniendo ImageView: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /* ------------------------------------------------------//--------------------------------------------------
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    ------------------------------------------------------//--------------------------------------------------
+     */
+    @FXML
+    private void instalarGit() {
+        gestorGit.instalarGit();
     }
 
     @FXML
-    private void exportarCatalogoHTML() {
+    public void desplegarAGitHubPages() {
         try {
+            String rutaCatalogo = System.getProperty("user.home") + "/Desktop/catalogo_productos_web";
+            File carpetaCatalogo = new File(rutaCatalogo);
+
+            // ✅ CREAR CARPETA AUTOMÁTICAMENTE SI NO EXISTE
+            if (!carpetaCatalogo.exists()) {
+                boolean creada = carpetaCatalogo.mkdirs();
+                if (creada) {
+                    System.out.println("✅ Carpeta creada automáticamente: " + carpetaCatalogo.getAbsolutePath());
+
+                    // También crear subcarpeta de imágenes
+                    File carpetaImagenes = new File(carpetaCatalogo, "imagenes_productos");
+                    carpetaImagenes.mkdirs();
+
+                    mostrarAlerta("Carpeta Creada",
+                            "📁 Se creó automáticamente la carpeta 'catalogo_productos_web' en el Escritorio\n"
+                            + "🔄 Procediendo con el despliegue a GitHub Pages...");
+                } else {
+                    mostrarAlerta("Error", "❌ No se pudo crear la carpeta automáticamente");
+                    return;
+                }
+            }
+
+            // ✅ VERIFICACIÓN SIMPLE COMO EN PRODUCTOS
             if (contenedorCatalogoVisual.getChildren().isEmpty()) {
-                mostrarAlerta("Error", "Primero genera el catálogo visual");
+                mostrarAlerta("Error", "Primero genera el catálogo visual desde la pestaña 'Catálogo Visual'");
                 return;
             }
 
-            FileChooser fileChooser = new FileChooser();
-            fileChooser.setTitle("Guardar catálogo como HTML");
-            fileChooser.getExtensionFilters().addAll(
-                    new FileChooser.ExtensionFilter("Página Web", "*.html"),
-                    new FileChooser.ExtensionFilter("Todos los archivos", "*.*")
-            );
-            fileChooser.setInitialFileName("catalogo_impulsa360.html");
+            // ✅ GENERAR EL HTML Y LAS IMÁGENES
+            File carpetaImagenes = new File(carpetaCatalogo, "imagenes_productos");
+            carpetaImagenes.mkdirs();
 
-            File file = fileChooser.showSaveDialog(null);
-            if (file != null) {
-                crearHTMLDelCatalogo(file);
-                mostrarAlerta("Éxito", "✅ Catálogo exportado como HTML: " + file.getName()
-                        + "\n\n📄 El archivo incluye:"
-                        + "\n• Todas las imágenes de productos"
-                        + "\n• Información completa"
-                        + "\n• Diseño responsive"
-                        + "\n• Se puede abrir en cualquier navegador");
-            }
+            int totalImagenes = copiarImagenesDeProductos(carpetaImagenes);
+            File htmlFile = new File(carpetaCatalogo, "index.html");
+            crearHTMLDelCatalogo(htmlFile);
+
+            // ✅ PROCEDER CON EL DESPLIEGUE
+            gestorGit.desplegarAGitHubPagesAsync(
+                    getClass(),
+                    carpetaCatalogo,
+                    "Catálogo de Productos",
+                    () -> {
+                        Platform.runLater(()
+                                -> mostrarAlerta("Éxito",
+                                "✅ Catálogo de productos desplegado en GitHub Pages\n\n"
+                                + "📍 La carpeta está en: " + carpetaCatalogo.getAbsolutePath())
+                        );
+                    },
+                    () -> {
+                        Platform.runLater(()
+                                -> mostrarAlerta("Error",
+                                "❌ Falló el despliegue del catálogo de productos\n\n"
+                                + "📍 La carpeta está en: " + carpetaCatalogo.getAbsolutePath())
+                        );
+                    }
+            );
 
         } catch (Exception e) {
-            mostrarAlerta("Error", "No se pudo exportar el catálogo: " + e.getMessage());
+            mostrarAlerta("Error", "❌ Error en el despliegue: " + e.getMessage());
+            e.printStackTrace();
         }
     }
-
 }

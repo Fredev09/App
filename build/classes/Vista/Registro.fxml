@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Hyperlink?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.AnchorPane?>
+
+<AnchorPane prefHeight="627.0" prefWidth="380" styleClass="modern-form"
+            stylesheets="@styles.css"
+            xmlns="http://javafx.com/javafx/25"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="Controlador.ControladorRegistro">
+
+    <!-- Título -->
+    <Label layoutX="30" layoutY="20" prefWidth="320" styleClass="form-title" text="Crear Cuenta" />
+    
+    <!-- Nombre completo -->
+    <Label layoutX="30" layoutY="70" styleClass="input-label" text="Nombre completo" />
+    <TextField fx:id="txtNombreCompleto" layoutX="30" layoutY="95" prefHeight="48" prefWidth="320"
+               promptText="Ingrese su nombre completo" styleClass="form-input" />
+    
+    <!-- Correo electrónico -->
+    <Label layoutX="30" layoutY="155" styleClass="input-label" text="Correo electrónico" />
+    <TextField fx:id="txtCorreo" layoutX="30" layoutY="180" prefHeight="48" prefWidth="320"
+               promptText="Ingrese su correo" styleClass="form-input" />
+    
+    <!-- Contraseña -->
+    <Label layoutX="30" layoutY="240" styleClass="input-label" text="Contraseña" />
+    <PasswordField fx:id="txtContrasena" layoutX="30" layoutY="265" prefHeight="48" prefWidth="320"
+                   promptText="Ingrese su contraseña" styleClass="form-input" />
+    <TextField fx:id="txtContrasenaVisible" layoutX="30" layoutY="265" prefHeight="48" prefWidth="320"
+               styleClass="form-input" visible="false" managed="false" />
+    <Button fx:id="btnMostrarContrasena" layoutX="310" layoutY="270" prefHeight="32" prefWidth="40"
+            styleClass="password-toggle" text="👁" />
+    
+    <!-- Confirmar contraseña -->
+    <Label layoutX="30" layoutY="330" styleClass="input-label" text="Confirmar contraseña" />
+    <PasswordField fx:id="txtConfirmarContrasena" layoutX="30" layoutY="355" prefHeight="48" prefWidth="320"
+                   promptText="Confirme su contraseña" styleClass="form-input" />
+    <TextField fx:id="txtConfirmarContrasenaVisible" layoutX="30" layoutY="355" prefHeight="48" prefWidth="320"
+               styleClass="form-input" visible="false" managed="false" />
+    <Button fx:id="btnMostrarConfirmarContrasena" layoutX="310" layoutY="360" prefHeight="32" prefWidth="40"
+            styleClass="password-toggle" text="👁" />
+    
+    <!-- Tipo de usuario -->
+    <Label layoutX="30" layoutY="420" styleClass="input-label" text="Tipo de usuario" />
+    <ComboBox fx:id="cmbTipoUsuario" layoutX="30" layoutY="445" prefHeight="40" prefWidth="320" styleClass="form-input" />
+    
+    <!-- Botón de registro -->
+    <Button fx:id="btnRegistrar" layoutX="30" layoutY="500" prefHeight="50" prefWidth="320"
+            styleClass="submit-button" text="Crear cuenta" />
+    
+    <!-- Separador -->
+    <Separator layoutX="30" layoutY="570" prefWidth="320" styleClass="form-separator" />
+    
+    <!-- Footer -->
+    <Label layoutX="63" layoutY="588" styleClass="footer-text" text="¿Ya tienes cuenta?" />
+    <Hyperlink fx:id="linkIniciarSesion" layoutX="231" layoutY="584" styleClass="login-link" text="Iniciar sesión" />
+    
+</AnchorPane>

@@ -4,6 +4,10 @@
  */
 package Modelo;
 
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
+import java.util.Locale;
+
 /**
  *
  * @author fredd
@@ -116,5 +120,10 @@ public class Producto {
 
     public void setFechaCreacion(String fechaCreacion) {
         this.fechaCreacion = fechaCreacion;
+    }
+    
+     public String getPrecioFormateado() {
+        DecimalFormat formatter = new DecimalFormat("$#,##0");
+        return formatter.format(this.precio);
     }
 }

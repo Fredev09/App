@@ -66,6 +66,7 @@ public class ControladorLogin {
      * Inicializa la visibilidad de los campos de contraseña y configura
      * las acciones de los botones y enlaces de la interfaz.
      */
+    
     @FXML
     public void initialize() {
         //Inicializar BD

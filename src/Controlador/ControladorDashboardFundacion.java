@@ -6,8 +6,10 @@ package Controlador;
 
 import Modelo.Proyecto;
 import Modelo.Usuario;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -19,8 +21,10 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.Optional;
 import java.util.ResourceBundle;
 import javafx.application.Platform;
+import javafx.embed.swing.SwingFXUtils;
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Insets;
 import javafx.scene.Parent;
@@ -85,6 +89,8 @@ public class ControladorDashboardFundacion implements Initializable {
     private final double EXPANDED_WIDTH = 900.0;
     private final double EXPANDED_HEIGHT = 700.0;
 
+    private ControladorGit gestorGit;
+
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         if (tabPane != null) {
@@ -109,6 +115,15 @@ public class ControladorDashboardFundacion implements Initializable {
                 );
             });
         }
+
+        gestorGit = new ControladorGit(
+                this::mostrarAlerta,
+                () -> {
+                    File resultado = exportarCatalogoHTML();
+                    return resultado != null;
+                }
+        );
+        gestorGit.limpiarCarpetasTemporalesPendientes();
     }
 
     public void setUsuarioLogueado(Usuario usuario) {
@@ -623,43 +638,36 @@ public class ControladorDashboardFundacion implements Initializable {
     }
 
     @FXML
-    private void exportarCatalogoHTML() {
+    private File exportarCatalogoHTML() {
         try {
-            // para actualizar img 
-            cargarCursos();
-            // Crear carpeta
-            File carpetaWeb = new File("catalogo_web");
-            File carpetaImagenes = new File("catalogo_web/imagenes");
-            carpetaImagenes.mkdirs();
-
-            // Copiar img de los cursos
-            int numero = 1;
-            for (Proyecto curso : cursosData) {
-                if (curso.getImagenPath() != null && !curso.getImagenPath().isEmpty()) {
-                    File imagenOriginal = new File(curso.getImagenPath());
-                    if (imagenOriginal.exists()) {
-                        // Copiar la imagen a la carpeta web
-                        String extension = obtenerExtension(imagenOriginal.getName());
-                        File imagenDestino = new File(carpetaImagenes, "curso" + numero + "." + extension);
-                        Files.copy(imagenOriginal.toPath(), imagenDestino.toPath(),
-                                StandardCopyOption.REPLACE_EXISTING);
-                    }
-                }
-                numero++;
+            if (contenedorCatalogoVisual.getChildren().isEmpty()) {
+                mostrarAlerta("Error", "Primero genera el catálogo visual");
+                return null;
             }
 
-            // Generar HTML con rutas relativas
+            File carpetaWeb = new File(System.getProperty("user.home") + "/Desktop/catalogo_cursos_web");
+            File carpetaImagenes = new File(carpetaWeb, "imagenes_cursos");
+            carpetaImagenes.mkdirs();
+
+            // ✅ VERIFICAR QUE SE EJECUTE
+            System.out.println("=== INICIANDO EXPORTACIÓN DE CURSOS ===");
+            int totalImagenes = copiarImagenesDeCursos(carpetaImagenes);
+            System.out.println("Imágenes de cursos procesadas: " + totalImagenes);
+
             File htmlFile = new File(carpetaWeb, "index.html");
             crearHTMLDelCatalogoCursos(htmlFile);
 
-            mostrarAlerta("Éxito", "📁 Carpeta 'catalogo_web' generada con:\n"
+            // ✅ MOSTRAR RESULTADO REAL
+            mostrarAlerta("Éxito", "📁 Carpeta 'catalogo_cursos_web' generada con:\n"
                     + "• index.html\n"
-                    + "• imagenes/ (con " + (numero - 1) + " imágenes)\n\n"
-                    + "¡Arrastra TODA la carpeta a GitHub!");
+                    + "• imagenes/ (con " + totalImagenes + " imágenes)\n\n"
+                    + "¡Las imágenes " + (totalImagenes > 0 ? "SÍ" : "NO") + " se copiaron!");
 
+            return carpetaWeb;
         } catch (Exception e) {
-            mostrarAlerta("Error", "No se pudo generar: " + e.getMessage());
+            mostrarAlerta("Error", "No se pudo exportar el catálogo: " + e.getMessage());
             e.printStackTrace();
+            return null;
         }
     }
 
@@ -668,27 +676,108 @@ public class ControladorDashboardFundacion implements Initializable {
         return (lastDot > 0) ? nombreArchivo.substring(lastDot + 1) : "jpg";
     }
 
-    private void copiarImagenesDeCursos(File carpetaDestino) {
+    /**
+     * OBTIENE EL ImageView DE UNA TARJETA DE CURSO
+     */
+    private ImageView obtenerImageViewDeTarjetaCurso(VBox tarjeta) {
         try {
-            int numero = 1;
-            for (Proyecto curso : cursosData) {
-                if (curso.getImagenPath() != null && !curso.getImagenPath().isEmpty()) {
-                    File imagenOriginal = new File(curso.getImagenPath());
-                    if (imagenOriginal.exists()) {
-                        // Copiar imagen al repositorio
-                        File imagenDestino = new File(carpetaDestino, "curso" + numero + ".jpg");
-                        java.nio.file.Files.copy(
-                                imagenOriginal.toPath(),
-                                imagenDestino.toPath(),
-                                java.nio.file.StandardCopyOption.REPLACE_EXISTING
-                        );
+            System.out.println("=== BUSCANDO IMAGEVIEW DE CURSO ===");
+            System.out.println("Número de hijos en tarjeta: " + tarjeta.getChildren().size());
+
+            int contador = 0;
+            for (javafx.scene.Node node : tarjeta.getChildren()) {
+                System.out.println("Hijo " + contador + ": " + node.getClass().getSimpleName());
+                if (node instanceof ImageView) {
+                    ImageView imageView = (ImageView) node;
+                    System.out.println("✅ ImageView encontrado - Imagen: " + (imageView.getImage() != null));
+                    return imageView;
+                }
+                contador++;
+            }
+
+            System.out.println("❌ No se encontró ImageView en la tarjeta de curso");
+            return null;
+
+        } catch (Exception e) {
+            System.err.println("❌ Error obteniendo ImageView de curso: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private int copiarImagenesDeCursos(File carpetaImagenes) {
+        int numero = 1;
+        int imagenesCopiadas = 0;
+
+        try {
+            // ✅ VERIFICAR QUE EL MÉTODO SE EJECUTA
+            System.out.println("=== COPIANDO IMÁGENES DE CURSOS ===");
+            System.out.println("Carpeta destino: " + carpetaImagenes.getAbsolutePath());
+
+            for (javafx.scene.Node node : contenedorCatalogoVisual.getChildren()) {
+                if (node instanceof GridPane) {
+                    GridPane grid = (GridPane) node;
+                    for (javafx.scene.Node child : grid.getChildren()) {
+                        if (child instanceof VBox) {
+                            VBox tarjeta = (VBox) child;
+                            ImageView imageView = obtenerImageViewDeTarjetaCurso(tarjeta);
+
+                            System.out.println("Procesando curso " + numero + " - ImageView: " + (imageView != null));
+                            System.out.println("Tiene imagen: " + (imageView != null && imageView.getImage() != null));
+
+                            if (imageView != null && imageView.getImage() != null) {
+                                try {
+                                    // ✅ CONVERTIR A JPG PARA CONSISTENCIA
+                                    java.awt.image.BufferedImage bufferedImage = SwingFXUtils.fromFXImage(imageView.getImage(), null);
+
+                                    // ✅ CREAR NUEVA IMAGEN CON FONDO BLANCO (evita fondos negros)
+                                    java.awt.image.BufferedImage nuevaImagen = new java.awt.image.BufferedImage(
+                                            bufferedImage.getWidth(),
+                                            bufferedImage.getHeight(),
+                                            java.awt.image.BufferedImage.TYPE_INT_RGB
+                                    );
+
+                                    java.awt.Graphics2D g2d = nuevaImagen.createGraphics();
+                                    g2d.setColor(java.awt.Color.WHITE);
+                                    g2d.fillRect(0, 0, bufferedImage.getWidth(), bufferedImage.getHeight());
+                                    g2d.drawImage(bufferedImage, 0, 0, null);
+                                    g2d.dispose();
+
+                                    // ✅ GUARDAR COMO JPG
+                                    File imagenDestino = new File(carpetaImagenes, "curso" + numero + ".jpg");
+                                    javax.imageio.ImageIO.write(nuevaImagen, "jpg", imagenDestino);
+
+                                    System.out.println("✅ Imagen guardada: " + imagenDestino.getName());
+                                    imagenesCopiadas++;
+
+                                } catch (Exception e) {
+                                    System.err.println("❌ Error copiando imagen curso " + numero + ": " + e.getMessage());
+                                    // Intentar método simple como fallback
+                                    try {
+                                        java.awt.image.BufferedImage bufferedImage = SwingFXUtils.fromFXImage(imageView.getImage(), null);
+                                        File imagenDestino = new File(carpetaImagenes, "curso" + numero + ".jpg");
+                                        javax.imageio.ImageIO.write(bufferedImage, "jpg", imagenDestino);
+                                        imagenesCopiadas++;
+                                        System.out.println("✅ Imagen guardada (fallback): " + imagenDestino.getName());
+                                    } catch (Exception ex) {
+                                        System.err.println("❌ Fallback también falló: " + ex.getMessage());
+                                    }
+                                }
+                            } else {
+                                System.out.println("❌ Curso " + numero + " no tiene imagen");
+                            }
+                            numero++;
+                        }
                     }
                 }
-                numero++;
             }
+
+            System.out.println("=== TOTAL IMÁGENES DE CURSOS COPIADAS: " + imagenesCopiadas + " ===");
+
         } catch (Exception e) {
-            System.err.println("Error copiando imágenes: " + e.getMessage());
+            System.err.println("❌ Error general procesando tarjetas de cursos: " + e.getMessage());
         }
+
+        return imagenesCopiadas;
     }
 
     private void crearHTMLDelCatalogoCursos(File file) {
@@ -971,10 +1060,16 @@ public class ControladorDashboardFundacion implements Initializable {
 
             // Procesar cada curso
             int contador = 0;
-            for (Proyecto curso : cursosData) {
-                if ("Activo".equals(curso.getEstado())) {
-                    String cursoHTML = crearHTMLCurso(curso, ++contador);
-                    html.append(cursoHTML);
+            for (javafx.scene.Node node : contenedorCatalogoVisual.getChildren()) {
+                if (node instanceof GridPane) {
+                    GridPane grid = (GridPane) node;
+                    for (javafx.scene.Node child : grid.getChildren()) {
+                        if (child instanceof VBox) {
+                            VBox tarjeta = (VBox) child;
+                            String cursoHTML = crearHTMLCursoConRutaRelativa(tarjeta, ++contador);
+                            html.append(cursoHTML);
+                        }
+                    }
                 }
             }
 
@@ -1000,6 +1095,146 @@ public class ControladorDashboardFundacion implements Initializable {
 
         } catch (Exception e) {
             throw new RuntimeException("Error creando HTML: " + e.getMessage(), e);
+        }
+    }
+
+    private String obtenerLinkGoogleFormDeCurso(String nombreCurso) {
+        try {
+            // Buscar el curso en los datos por nombre
+            for (Proyecto curso : cursosData) {
+                if (curso.getNombreCurso().equals(nombreCurso)) {
+                    return curso.getLinkGoogleForm();
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error obteniendo link Google Form: " + e.getMessage());
+        }
+        return "#";
+    }
+
+    private String crearHTMLCursoConRutaRelativa(VBox tarjetaCurso, int numero) {
+        try {
+            StringBuilder cursoHTML = new StringBuilder();
+            cursoHTML.append("<div class=\"curso-card\">\n");
+
+            // ✅ 1. EXTRAER LA INFORMACIÓN DEL CURSO
+            String nombreCurso = "Curso";
+            String categoria = "Categoría";
+            String duracion = "Duración";
+            String cupos = "0 cupos";
+            String fechas = "Fechas";
+            String descripcion = "Descripción";
+            String requisitos = "Requisitos";
+
+            // Extraer datos de los labels dentro del VBox
+            for (javafx.scene.Node node : tarjetaCurso.getChildren()) {
+                if (node instanceof Label) {
+                    Label label = (Label) node;
+                    String texto = label.getText();
+                    if (texto != null) {
+                        if (texto.startsWith("🎓")) {
+                            nombreCurso = texto.substring(2).trim();
+                        } else if (texto.startsWith("📚")) {
+                            categoria = texto.substring(2).trim();
+                        } else if (texto.startsWith("⏱️")) {
+                            duracion = texto.substring(2).trim();
+                        } else if (texto.startsWith("👥")) {
+                            cupos = texto.substring(2).trim();
+                        } else if (texto.startsWith("📅")) {
+                            fechas = texto.substring(2).trim();
+                        } else if (texto.startsWith("🎯")) {
+                            requisitos = texto.substring(2).trim();
+                        }
+                    }
+                }
+            }
+
+            // ✅ 2. BUSCAR EL ImageView PARA LA IMAGEN REAL
+            ImageView imageView = null;
+            for (javafx.scene.Node node : tarjetaCurso.getChildren()) {
+                if (node instanceof ImageView) {
+                    imageView = (ImageView) node;
+                    break;
+                }
+                if (node instanceof HBox) {
+                    HBox hbox = (HBox) node;
+                    for (javafx.scene.Node child : hbox.getChildren()) {
+                        if (child instanceof ImageView) {
+                            imageView = (ImageView) child;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // ✅ 3. GENERAR HTML CON IMAGEN REAL O PLACEHOLDER
+            if (imageView != null && imageView.getImage() != null) {
+                // ✅ IMAGEN REAL - usar ruta relativa para GitHub Pages
+                cursoHTML.append("<div class=\"curso-imagen-container\">\n");
+                cursoHTML.append("<img src=\"imagenes_cursos/curso")
+                        .append(numero)
+                        .append(".jpg\" class=\"curso-imagen\" alt=\"")
+                        .append(escapeHTML(nombreCurso))
+                        .append("\">\n");
+                cursoHTML.append("</div>\n");
+            } else {
+                // ❌ PLACEHOLDER (solo si no hay imagen)
+                cursoHTML.append("<div class=\"curso-imagen-container\">\n");
+                cursoHTML.append("<div class=\"curso-imagen-placeholder\">🎓 Curso<br>")
+                        .append(escapeHTML(nombreCurso))
+                        .append("</div>\n");
+                cursoHTML.append("</div>\n");
+            }
+
+            // ✅ 4. INFORMACIÓN DEL CURSO
+            cursoHTML.append("<div class=\"curso-info\">\n");
+            cursoHTML.append("<div class=\"curso-nombre\">").append(numero).append(". ").append(escapeHTML(nombreCurso)).append("</div>\n");
+            cursoHTML.append("<div class=\"curso-categoria\">📚 ").append(escapeHTML(categoria)).append("</div>\n");
+            cursoHTML.append("<div class=\"curso-duracion\">⏱️ ").append(escapeHTML(duracion)).append("</div>\n");
+            cursoHTML.append("<div class=\"curso-cupos\">👥 ").append(escapeHTML(cupos)).append("</div>\n");
+            cursoHTML.append("<div class=\"curso-fechas\">📅 ").append(escapeHTML(fechas)).append("</div>\n");
+
+            if (!descripcion.equals("Descripción")) {
+                cursoHTML.append("<div class=\"curso-descripcion\">📝 ").append(escapeHTML(descripcion)).append("</div>\n");
+            }
+
+            if (!requisitos.equals("Requisitos")) {
+                cursoHTML.append("<div class=\"curso-requisitos\">🎯 ").append(escapeHTML(requisitos)).append("</div>\n");
+            }
+
+            cursoHTML.append("</div>\n");
+
+            // ✅ 5. BOTONES DE ACCIÓN
+            String linkGoogleForm = obtenerLinkGoogleFormDeCurso(nombreCurso);
+
+            cursoHTML.append("<div class=\"botones-container\">\n");
+
+            // Botón de Google Form (inscripción)
+            if (linkGoogleForm != null && !linkGoogleForm.equals("#")) {
+                cursoHTML.append("<a href=\"").append(escapeHTML(linkGoogleForm))
+                        .append("\" target=\"_blank\" class=\"boton-inscripcion\" title=\"Inscribirse en el curso: ")
+                        .append(escapeHTML(nombreCurso))
+                        .append("\">")
+                        .append("📝 Inscribirse")
+                        .append("</a>\n");
+            }
+
+            // Botón de WhatsApp
+            String mensajeWhatsApp = "Hola! Estoy interesado en el curso: " + nombreCurso;
+            String enlaceWhatsApp = "https://wa.me/573127125150?text=" + java.net.URLEncoder.encode(mensajeWhatsApp, "UTF-8");
+
+            cursoHTML.append("<a href=\"").append(enlaceWhatsApp)
+                    .append("\" target=\"_blank\" class=\"boton-whatsapp\" title=\"Consultar por WhatsApp sobre: ")
+                    .append(escapeHTML(nombreCurso))
+                    .append("\">💬 Consultar por WhatsApp</a>\n");
+
+            cursoHTML.append("</div>\n");
+            cursoHTML.append("</div>\n");
+            return cursoHTML.toString();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "<div class=\"curso-card\">Error generando curso</div>";
         }
     }
 
@@ -1034,43 +1269,48 @@ public class ControladorDashboardFundacion implements Initializable {
         // Estado activo
         cursoHTML.append("<div class=\"estado-activo\">✅ INSCRIPCIONES ABIERTAS</div>\n");
 
-        // ✅ IMAGEN DEL CURSO
-        if (curso.getImagenPath() != null && !curso.getImagenPath().isEmpty()) {
-            try {
-                File file = new File(curso.getImagenPath());
-                if (file.exists()) {
-                    java.awt.image.BufferedImage bufferedImage = javax.imageio.ImageIO.read(file);
-                    java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-                    javax.imageio.ImageIO.write(bufferedImage, "png", baos);
-                    byte[] imageBytes = baos.toByteArray();
-                    String imagenBase64 = java.util.Base64.getEncoder().encodeToString(imageBytes);
+        // ✅ CORREGIDO: Usar ruta relativa JPG en lugar de Base64 PNG
+        cursoHTML.append("<div class=\"curso-imagen-container\">\n");
 
-                    cursoHTML.append("<div class=\"curso-imagen-container\">\n");
-                    cursoHTML.append("<img src=\"data:image/png;base64,")
-                            .append(imagenBase64)
-                            .append("\" class=\"curso-imagen\" alt=\"")
-                            .append(escapeHTML(curso.getNombreCurso()))
-                            .append("\">\n");
-                    cursoHTML.append("</div>\n");
-                }
-            } catch (Exception e) {
-                System.err.println("Error procesando imagen para HTML: " + e.getMessage());
-                // Placeholder en caso de error
-                cursoHTML.append("<div class=\"curso-imagen-container\">\n");
-                cursoHTML.append("<div class=\"curso-imagen-placeholder\">🎓 Imagen del Curso<br>").append(escapeHTML(curso.getNombreCurso())).append("</div>\n");
-                cursoHTML.append("</div>\n");
-            }
+        // Verificar si existe la imagen
+        File imagenFile = new File("imagenes/curso" + numero + ".jpg");
+        if (imagenFile.exists()) {
+            cursoHTML.append("<img src=\"imagenes/curso")
+                    .append(numero)
+                    .append(".jpg\" class=\"curso-imagen\" alt=\"")
+                    .append(escapeHTML(curso.getNombreCurso()))
+                    .append("\">\n");
         } else {
             // Placeholder si no hay imagen
-            cursoHTML.append("<div class=\"curso-imagen-container\">\n");
-            cursoHTML.append("<div class=\"curso-imagen-placeholder\">🎓 Imagen del Curso<br>").append(escapeHTML(curso.getNombreCurso())).append("</div>\n");
-            cursoHTML.append("</div>\n");
+            cursoHTML.append("<div class=\"curso-imagen-placeholder\">🎓 Imagen del Curso<br>")
+                    .append(escapeHTML(curso.getNombreCurso()))
+                    .append("</div>\n");
         }
+
+        cursoHTML.append("</div>\n");
+
+        // ✅ INFORMACIÓN DEL CURSO (agregar esta sección)
+        cursoHTML.append("<div class=\"curso-info\">\n");
+        cursoHTML.append("<div class=\"curso-nombre\">").append(numero).append(". ").append(escapeHTML(curso.getNombreCurso())).append("</div>\n");
+        cursoHTML.append("<div class=\"curso-categoria\">📚 ").append(escapeHTML(curso.getCategoriaCurso())).append("</div>\n");
+        cursoHTML.append("<div class=\"curso-duracion\">⏱️ ").append(escapeHTML(curso.getDuracion())).append("</div>\n");
+        cursoHTML.append("<div class=\"curso-cupos\">👥 ").append(curso.getCuposDisponibles()).append(" cupos disponibles</div>\n");
+        cursoHTML.append("<div class=\"curso-fechas\">📅 ").append(formatearFecha(curso.getFechaInicio())).append(" - ").append(formatearFecha(curso.getFechaFin())).append("</div>\n");
+
+        if (curso.getDescripcion() != null && !curso.getDescripcion().isEmpty()) {
+            cursoHTML.append("<div class=\"curso-descripcion\">📝 ").append(escapeHTML(curso.getDescripcion())).append("</div>\n");
+        }
+
+        if (curso.getRequisitos() != null && !curso.getRequisitos().isEmpty()) {
+            cursoHTML.append("<div class=\"curso-requisitos\">🎯 Requisitos: ").append(escapeHTML(curso.getRequisitos())).append("</div>\n");
+        }
+
+        cursoHTML.append("</div>\n");
 
         // ✅ CONTENEDOR DE BOTONES
         cursoHTML.append("<div class=\"botones-container\">\n");
 
-        // Botón de Google Form (inscripción) - TEXTO CORTO PARA MÓVIL
+        // Botón de Google Form (inscripción)
         if (curso.getLinkGoogleForm() != null && !curso.getLinkGoogleForm().isEmpty()) {
             cursoHTML.append("<a href=\"").append(escapeHTML(curso.getLinkGoogleForm()))
                     .append("\" target=\"_blank\" class=\"boton-inscripcion\" title=\"Inscribirse en el curso: ")
@@ -1080,7 +1320,7 @@ public class ControladorDashboardFundacion implements Initializable {
                     .append("</a>\n");
         }
 
-        // Botón de WhatsApp - TEXTO CORTO PARA MÓVIL
+        // Botón de WhatsApp
         String numeroWhatsApp = "+573127125150";
         String mensajeWhatsApp = "Hola! Estoy interesado en el curso: " + escapeHTML(curso.getNombreCurso());
         String enlaceWhatsApp = "https://wa.me/" + numeroWhatsApp.replace("+", "") + "?text="
@@ -1126,8 +1366,92 @@ public class ControladorDashboardFundacion implements Initializable {
                 stage.setScene(new Scene(root));
                 stage.setTitle("Iniciar Sesión - Impulsa360");
             }
+
         } catch (Exception e) {
             mostrarAlerta("Error", "No se pudo cerrar la sesión: " + e.getMessage());
+        }
+    }
+
+    /* ------------------------------------------------------//--------------------------------------------------
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
+    ------------------------------------------------------//--------------------------------------------------
+     */
+    @FXML
+    private void instalarGit() {
+        gestorGit.instalarGit();
+    }
+
+    @FXML
+    public void desplegarAGitHubPages() {
+        try {
+            String rutaCatalogo = System.getProperty("user.home") + "/Desktop/catalogo_cursos_web";
+            File carpetaCatalogo = new File(rutaCatalogo);
+
+            // ✅ CREAR CARPETA AUTOMÁTICAMENTE SI NO EXISTE
+            if (!carpetaCatalogo.exists()) {
+                boolean creada = carpetaCatalogo.mkdirs();
+                if (creada) {
+                    System.out.println("✅ Carpeta creada automáticamente: " + carpetaCatalogo.getAbsolutePath());
+
+                    // También crear subcarpeta de imágenes
+                    File carpetaImagenes = new File(carpetaCatalogo, "imagenes_cursos");
+                    carpetaImagenes.mkdirs();
+
+                    mostrarAlerta("Carpeta Creada",
+                            "📁 Se creó automáticamente la carpeta 'catalogo_cursos_web' en el Escritorio\n"
+                            + "🔄 Procediendo con el despliegue a GitHub Pages...");
+                } else {
+                    mostrarAlerta("Error", "❌ No se pudo crear la carpeta automáticamente");
+                    return;
+                }
+            }
+
+            // ✅ VERIFICACIÓN SIMPLE COMO EN PRODUCTOS
+            if (contenedorCatalogoVisual.getChildren().isEmpty()) {
+                mostrarAlerta("Error", "Primero genera el catálogo visual desde la pestaña 'Catálogo Visual'");
+                return;
+            }
+
+            // ✅ GENERAR EL HTML Y LAS IMÁGENES
+            File carpetaImagenes = new File(carpetaCatalogo, "imagenes_cursos");
+            carpetaImagenes.mkdirs();
+
+            int totalImagenes = copiarImagenesDeCursos(carpetaImagenes);
+            File htmlFile = new File(carpetaCatalogo, "index.html");
+            crearHTMLDelCatalogoCursos(htmlFile);
+
+            // ✅ PROCEDER CON EL DESPLIEGUE
+            gestorGit.desplegarAGitHubPagesAsync(
+                    getClass(),
+                    carpetaCatalogo,
+                    "Catálogo de Cursos",
+                    () -> {
+                        Platform.runLater(()
+                                -> mostrarAlerta("Éxito", "✅ Catálogo de cursos desplegado en GitHub Pages")
+                        );
+                    },
+                    () -> {
+                        Platform.runLater(()
+                                -> mostrarAlerta("Error", "❌ Falló el despliegue del catálogo de cursos")
+                        );
+                    }
+            );
+
+        } catch (Exception e) {
+            mostrarAlerta("Error", "❌ Error en el despliegue: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 }
