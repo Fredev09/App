@@ -21,7 +21,7 @@ public class App extends Application {
         Scene scene = new Scene(loader.load());
         stage.setTitle("Inicio de Sesion");
         stage.setScene(scene);
-        stage.setResizable(false);
+       // stage.setResizable(false);
         stage.show();
     }
 

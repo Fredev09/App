@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <?import javafx.geometry.Insets?>
+<?import javafx.scene.Cursor?>
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ScrollPane?>
@@ -11,13 +12,14 @@
 <?import javafx.scene.control.TableView?>
 <?import javafx.scene.control.TextArea?>
 <?import javafx.scene.control.TextField?>
+<?import javafx.scene.control.ToggleButton?>
 <?import javafx.scene.control.cell.PropertyValueFactory?>
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
 
-<BorderPane prefHeight="762.0" prefWidth="821.0" stylesheets="@styles.css" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="Controlador.ControladorDashboard">
+<BorderPane fx:id="root" prefHeight="762.0" prefWidth="731.0" stylesheets="@styles.css" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="Controlador.ControladorDashboard">
     
     <top>
         <VBox spacing="10" styleClass="header">
@@ -29,16 +31,17 @@
                 <Label fx:id="lblUsuario" styleClass="header-subtitle" />
                 <Region HBox.hgrow="ALWAYS" />
                 <Button onAction="#cerrarSesion" styleClass="btn-logout" text="Cerrar Sesión" />
+                <ToggleButton fx:id="btnTema" layoutX="10" layoutY="10" styleClass="switch-tema" text="🌙" />
             </HBox>
             <Separator />
         </VBox>
     </top>
     
     <center>
-        <TabPane prefHeight="817.0" prefWidth="662.0" styleClass="main-tabpane">
+        <TabPane prefHeight="817.0" prefWidth="662.0" styleClass="main-tabpane" BorderPane.alignment="CENTER">
             <!-- Pestaña de Productos -->
             <Tab text="📦 Mis Productos">
-                <VBox prefHeight="825.0" prefWidth="661.0" spacing="15" style="-fx-padding: 20;">
+                <VBox spacing="15" style="-fx-padding: 20;" VBox.vgrow="ALWAYS">
                     <HBox alignment="CENTER_LEFT" spacing="10">
                         <Label style="-fx-font-weight: bold; -fx-font-size: 16;" text="GESTIÓN DE PRODUCTOS" />
                         <Region HBox.hgrow="ALWAYS" />
@@ -60,31 +63,17 @@
                         </HBox>
                     </VBox>
                     
-                    <!-- Tabla de productos -->
-                    <TableView fx:id="tablaProductos" onMouseClicked="#manejarClickTabla" prefHeight="286.0" prefWidth="621.0" styleClass="data-table">
+                    <!-- Tabla de productos que se expande -->
+                    <TableView fx:id="tablaProductos" VBox.vgrow="ALWAYS">
                         <columns>
-                            <TableColumn prefWidth="171.20000839233398" text="Producto">
-                                <cellValueFactory>
-                                    <PropertyValueFactory property="nombre" />
-                                </cellValueFactory>
-                            </TableColumn>
-                            <TableColumn fx:id="colPrecio" prefWidth="172.00001525878906" text="Precio">
-                                <cellValueFactory>
-                                    <PropertyValueFactory property="precio" />
-                                </cellValueFactory>
-                            </TableColumn>
-                            <TableColumn prefWidth="163.19998168945312" text="Stock">
-                                <cellValueFactory>
-                                    <PropertyValueFactory property="cantidadDisponible" />
-                                </cellValueFactory>
-                            </TableColumn>
-                            <TableColumn prefWidth="202.39996337890625" text="Categoría">
-                                <cellValueFactory>
-                                    <PropertyValueFactory property="categoria" />
-                                </cellValueFactory>
-                            </TableColumn>
-                            <TableColumn minWidth="0.0" prefWidth="0.0" text="Acciones" />
+                            <TableColumn prefWidth="150" text="Productos" />
+                            <TableColumn fx:id="colPrecio" prefWidth="100" text="Precio" />
+                            <TableColumn prefWidth="100" text="Stock" />
+                            <TableColumn prefWidth="200" text="Categoría" />
                         </columns>
+                        <columnResizePolicy>
+                            <TableView fx:constant="CONSTRAINED_RESIZE_POLICY" />
+                        </columnResizePolicy>
                     </TableView>
                     
                     <!-- Botones de acción -->
@@ -97,9 +86,9 @@
             
             <!-- Pestaña de Catálogo WhatsApp COMPLETA -->
             <Tab text="📱 Catálogo WhatsApp">
-                <VBox spacing="15" style="-fx-padding: 20;">
+                <VBox spacing="15" style="-fx-padding: 20;" VBox.vgrow="ALWAYS">
                     <Label style="-fx-font-weight: bold; -fx-font-size: 16;" text="GENERA TU CATÁLOGO PARA WHATSAPP" />
-                    <TextArea fx:id="areaCatalogo" editable="false" prefRowCount="12" styleClass="catalog-textarea" />
+                    <TextArea fx:id="areaCatalogo" editable="false" VBox.vgrow="ALWAYS" styleClass="catalog-textarea" />
                     <HBox spacing="10">
                         <Button onAction="#copiarCatalogoPortapapeles" styleClass="btn-whatsapp" text="📋 Copiar Catálogo" />
                         <Button onAction="#generarCatalogo" styleClass="btn-secondary" text="🔄 Actualizar Catálogo" />
@@ -110,19 +99,22 @@
             
             <!-- NUEVA PESTAÑA: Catálogo Visual con Imágenes -->
             <Tab text="📋Catálogo Visual">
-                <ScrollPane fitToWidth="true">
+                <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS">
                     <VBox spacing="15" style="-fx-padding: 20;">
                         <Label style="-fx-font-weight: bold; -fx-font-size: 18;" text="CATÁLOGO VISUAL DE PRODUCTOS" />
 
                         <!-- Botones de gestión -->
                         <HBox alignment="CENTER" spacing="10">
-                            <!-- Botones de gestión - VERSIÓN SIMPLIFICADA Y CORREGIDA -->
                             <HBox alignment="CENTER" spacing="10">
                                 <Button onAction="#generarCatalogoVisual" styleClass="btn-primary" text="🔄 Generar Vista" />
                                 <Button onAction="#copiarCatalogoTextoSolo" styleClass="btn-whatsapp" text="📄 Copiar Texto" />
                                 <Button onAction="#exportarCatalogoHTML" styleClass="btn-success" text="🌐 Exportar HTML" />
                                 <Button onAction="#instalarGit" styleClass="btn-git" text="🔧 Instalar Git" />
-                                <Button fx:id="btnGitHub" onAction="#desplegarAGitHubPages" styleClass="btn-github" text="🚀 Desplegar a GitHub" />
+                                <Button fx:id="btnGitHub" onAction="#desplegarAGitHubPages" styleClass="btn-github" text="🚀 Desplegar a GitHub">
+                                    <cursor>
+                                        <Cursor fx:constant="HAND" />
+                                    </cursor>
+                                </Button>
                             </HBox>
                         </HBox>
 
@@ -141,16 +133,16 @@
             
             <!-- Pestaña de Reservas COMPLETA -->
             <Tab text="🛒 Reservas Recibidas">
-                <VBox spacing="15" style="-fx-padding: 20;">
+                <VBox spacing="15" style="-fx-padding: 20;" VBox.vgrow="ALWAYS">
                     <Label style="-fx-font-weight: bold; -fx-font-size: 16;" text="RESERVAS DE CLIENTES" />
-                    <TableView fx:id="tablaReservas" styleClass="data-table">
+                    <TableView fx:id="tablaReservas" styleClass="data-table" VBox.vgrow="ALWAYS">
                         <columns>
-                            <TableColumn prefWidth="120" text="Cliente">
+                            <TableColumn prefWidth="150" text="Cliente">
                                 <cellValueFactory>
                                     <PropertyValueFactory property="nombreCliente" />
                                 </cellValueFactory>
                             </TableColumn>
-                            <TableColumn prefWidth="100" text="Teléfono">
+                            <TableColumn prefWidth="120" text="Teléfono">
                                 <cellValueFactory>
                                     <PropertyValueFactory property="telefonoCliente" />
                                 </cellValueFactory>
@@ -160,22 +152,25 @@
                                     <PropertyValueFactory property="cantidad" />
                                 </cellValueFactory>
                             </TableColumn>
-                            <TableColumn prefWidth="92.79998779296875" text="Total">
+                            <TableColumn prefWidth="100" text="Total">
                                 <cellValueFactory>
                                     <PropertyValueFactory property="total" />
                                 </cellValueFactory>
                             </TableColumn>
-                            <TableColumn prefWidth="137.60000610351562" text="Fecha">
+                            <TableColumn prefWidth="150" text="Fecha">
                                 <cellValueFactory>
                                     <PropertyValueFactory property="fechaReserva" />
                                 </cellValueFactory>
                             </TableColumn>
-                            <TableColumn prefWidth="180.0" text="Estado">
+                            <TableColumn prefWidth="200" text="Estado">
                                 <cellValueFactory>
                                     <PropertyValueFactory property="estado" />
                                 </cellValueFactory>
                             </TableColumn>
                         </columns>
+                        <columnResizePolicy>
+                            <TableView fx:constant="CONSTRAINED_RESIZE_POLICY" />
+                        </columnResizePolicy>
                     </TableView>
                     <Button onAction="#cargarReservas" styleClass="btn-secondary" text="🔄 Actualizar Reservas" />
                 </VBox>
@@ -183,7 +178,7 @@
 
             <!-- PESTAÑA SIMULADOR -->
             <Tab text="🔬 Simulador WhatsApp">
-                <ScrollPane fitToWidth="true" style="-fx-padding: 10;">
+                <ScrollPane fitToWidth="true" style="-fx-padding: 10;" VBox.vgrow="ALWAYS">
                     <VBox spacing="15" style="-fx-padding: 10;">
                         <Label style="-fx-font-weight: bold; -fx-font-size: 18; -fx-text-fill: #2c3e50;" text="SIMULADOR WHATSAPP - PRUEBAS LOCALES" />
         

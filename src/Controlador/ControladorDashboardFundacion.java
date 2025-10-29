@@ -23,17 +23,20 @@ import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Optional;
 import java.util.ResourceBundle;
+import javafx.animation.AnimationTimer;
 import javafx.application.Platform;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Insets;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.effect.DropShadow;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.GridPane;
+import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
@@ -90,7 +93,10 @@ public class ControladorDashboardFundacion implements Initializable {
     private final double EXPANDED_HEIGHT = 700.0;
 
     private ControladorGit gestorGit;
-
+    
+    @FXML
+    Button btnGitHub;
+    
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         if (tabPane != null) {
@@ -124,6 +130,61 @@ public class ControladorDashboardFundacion implements Initializable {
                 }
         );
         gestorGit.limpiarCarpetasTemporalesPendientes();
+        animarBorde(btnGitHub);
+    }
+    public void animarBorde(Button btn) {
+        final long startTime = System.nanoTime();
+
+        // ✨ Efecto de brillo general en el botón
+        DropShadow glow = new DropShadow();
+        glow.setRadius(15);
+        glow.setSpread(0.6);
+        glow.setColor(Color.web("#ffffff"));
+        btn.setEffect(glow);
+
+        AnimationTimer timer = new AnimationTimer() {
+            @Override
+            public void handle(long now) {
+                double t = (now - startTime) / 1_000_000_000.0;
+
+                // 🎨 Colores tipo arcoíris muy saturados y brillantes
+                double hue1 = (t * 120) % 360;
+                double hue2 = (hue1 + 120) % 360;
+                double hue3 = (hue1 + 240) % 360;
+
+                // Aumentamos la saturación y brillo al máximo
+                Color c1 = Color.hsb(hue1, 1.0, 1.0);
+                Color c2 = Color.hsb(hue2, 1.0, 1.0);
+                Color c3 = Color.hsb(hue3, 1.0, 1.0);
+
+                String color1 = toRgbString(c1);
+                String color2 = toRgbString(c2);
+                String color3 = toRgbString(c3);
+
+                // 🌟 Estilo del botón con borde animado
+                btn.setStyle(
+                        "-fx-background-radius: 12;"
+                        + "-fx-border-radius: 12;"
+                        + "-fx-border-width: 3;"
+                        + String.format("-fx-border-color: linear-gradient(to right, %s, %s, %s);", color1, color2, color3)
+                        + "-fx-background-color: linear-gradient(to bottom, #1a1a1a, #000000);"
+                        + "-fx-text-fill: white;"
+                        + "-fx-font-weight: bold;"
+                        + "-fx-font-size: 14px;"
+                );
+
+                // 🔥 Hace que el glow cambie suavemente de color también
+                glow.setColor(c1.interpolate(c2, 0.5));
+            }
+        };
+
+        timer.start();
+    }
+    private String toRgbString(Color color) {
+        int r = (int) (color.getRed() * 255);
+        int g = (int) (color.getGreen() * 255);
+        int b = (int) (color.getBlue() * 255);
+        return String.format("rgb(%d,%d,%d)", r, g, b);
     }
 
     public void setUsuarioLogueado(Usuario usuario) {
@@ -1453,5 +1514,10 @@ public class ControladorDashboardFundacion implements Initializable {
             mostrarAlerta("Error", "❌ Error en el despliegue: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+    
+    @FXML 
+    public void cargarInscripciones(){
+        //Hacer logica pa cargar isncripciones
     }
 }
