@@ -17,7 +17,7 @@
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
 
-<BorderPane prefHeight="762.0" prefWidth="753.0" stylesheets="@styles.css" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="Controlador.ControladorDashboard">
+<BorderPane prefHeight="762.0" prefWidth="821.0" stylesheets="@styles.css" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="Controlador.ControladorDashboard">
     
     <top>
         <VBox spacing="10" styleClass="header">
@@ -89,8 +89,8 @@
                     
                     <!-- Botones de acción -->
                     <HBox alignment="CENTER_RIGHT" spacing="10">
-                        <Button onAction="#editarProducto" styleClass="btn-primary" text="✏️ Editar Producto Seleccionado" />
-                        <Button onAction="#eliminarProducto" styleClass="btn-danger" text="🗑️ Eliminar Producto Seleccionado" />
+                        <Button onAction="#editarProducto" styleClass="btn-primary" text="✏ Editar Producto Seleccionado" />
+                        <Button onAction="#eliminarProducto" styleClass="btn-danger" text="🗑 Eliminar Producto Seleccionado" />
                     </HBox>
                 </VBox>
             </Tab>
@@ -122,7 +122,7 @@
                                 <Button onAction="#copiarCatalogoTextoSolo" styleClass="btn-whatsapp" text="📄 Copiar Texto" />
                                 <Button onAction="#exportarCatalogoHTML" styleClass="btn-success" text="🌐 Exportar HTML" />
                                 <Button onAction="#instalarGit" styleClass="btn-git" text="🔧 Instalar Git" />
-                                <Button onAction="#desplegarAGitHubPages" styleClass="btn-github" text="🚀 Desplegar a GitHub" />
+                                <Button fx:id="btnGitHub" onAction="#desplegarAGitHubPages" styleClass="btn-github" text="🚀 Desplegar a GitHub" />
                             </HBox>
                         </HBox>
 
