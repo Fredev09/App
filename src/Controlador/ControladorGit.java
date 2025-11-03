@@ -69,7 +69,8 @@ public class ControladorGit {
 
     private boolean verificarGitEnRutaEspecifica(String rutaGit) {
         try {
-            ProcessBuilder pb = new ProcessBuilder(rutaGit, "--version");
+            //ProcessBuilder pb = new ProcessBuilder(rutaGit, "--version");
+            ProcessBuilder pb = new ProcessBuilder(rutaGit);
             pb.redirectErrorStream(true);
             Process proceso = pb.start();
             int resultado = proceso.waitFor();

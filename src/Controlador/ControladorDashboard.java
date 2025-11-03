@@ -962,11 +962,11 @@ public class ControladorDashboard implements Initializable {
             GridPane gridProductos = new GridPane();
             gridProductos.setHgap(20);
             gridProductos.setVgap(20);
-            gridProductos.setPadding(new javafx.geometry.Insets(15));
+            gridProductos.setPadding(new javafx.geometry.Insets(20));
 
             int columna = 0;
             int fila = 0;
-            int maxColumnas = 2; // Máximo 2 columnas
+            int maxColumnas = 4; // Máximo 4 columnas
 
             // Crear tarjetas para cada producto
             for (Producto producto : productos) {
@@ -1279,17 +1279,20 @@ public class ControladorDashboard implements Initializable {
     private VBox crearTarjetaProductoVisual(Producto producto) {
         VBox tarjeta = new VBox(10);
         tarjeta.setStyle("-fx-padding: 15; -fx-background-color: white; -fx-border-radius: 10; -fx-border-color: #ddd; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 5, 0, 0, 2);");
-        tarjeta.setPrefWidth(280);
-        tarjeta.setMaxWidth(280);
 
-        // Imagen del producto
+        // ✅ TAMAÑO FIJO Y CONSISTENTE
+        tarjeta.setPrefWidth(330);
+        tarjeta.setMaxWidth(330);
+        tarjeta.setMinWidth(330);
+
+        // ✅ IMAGEN CON TAMAÑO FIJO
         ImageView imageView = new ImageView();
-        imageView.setFitWidth(250);
-        imageView.setFitHeight(180);
+        imageView.setFitWidth(270);
+        imageView.setFitHeight(200);
         imageView.setPreserveRatio(true);
         imageView.setStyle("-fx-border-radius: 8; -fx-border-color: #eee;");
 
-        // Cargar imagen
+        // Cargar imagen (tu código existente)
         if (producto.getImagenPath() != null && !producto.getImagenPath().isEmpty()) {
             try {
                 File file = new File(producto.getImagenPath());
@@ -1306,23 +1309,115 @@ public class ControladorDashboard implements Initializable {
             imageView.setImage(crearImagenPorDefecto());
         }
 
-        // Botones de acción individuales
-        HBox botonesIndividuales = new HBox(5);
+        // ✅ BOTONES CON ESTILOS MEJORADOS
+        HBox botonesIndividuales = new HBox(8);
         botonesIndividuales.setAlignment(javafx.geometry.Pos.CENTER);
 
         Button btnCambiarImagen = new Button("📷 Cambiar");
-        btnCambiarImagen.setStyle("-fx-font-size: 10; -fx-pref-height: 25; -fx-pref-width: 80;");
-        btnCambiarImagen.setOnAction(e -> seleccionarImagen(producto));
+        btnCambiarImagen.setStyle(
+                "-fx-font-size: 12px; "
+                + "-fx-font-weight: bold; "
+                + "-fx-text-fill: white; "
+                + "-fx-background-color: linear-gradient(to bottom, #10b981, #0da271); "
+                + "-fx-border-radius: 6px; "
+                + "-fx-background-radius: 6px; "
+                + "-fx-padding: 8px 12px; "
+                + "-fx-cursor: hand; "
+                + "-fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.3), 4, 0, 0, 2);"
+        );
+
+        // Efecto hover para el botón Cambiar
+        btnCambiarImagen.setOnMouseEntered(e -> {
+            btnCambiarImagen.setStyle(
+                    "-fx-font-size: 12px; "
+                    + "-fx-font-weight: bold; "
+                    + "-fx-text-fill: white; "
+                    + "-fx-background-color: linear-gradient(to bottom, #0da271, #0b8a5c); "
+                    + "-fx-border-radius: 6px; "
+                    + "-fx-background-radius: 6px; "
+                    + "-fx-padding: 8px 12px; "
+                    + "-fx-cursor: hand; "
+                    + "-fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.5), 6, 0, 0, 3); "
+                    + "-fx-translate-y: -1px;"
+            );
+        });
+
+        btnCambiarImagen.setOnMouseExited(e -> {
+            btnCambiarImagen.setStyle(
+                    "-fx-font-size: 12px; "
+                    + "-fx-font-weight: bold; "
+                    + "-fx-text-fill: white; "
+                    + "-fx-background-color: linear-gradient(to bottom, #10b981, #0da271); "
+                    + "-fx-border-radius: 6px; "
+                    + "-fx-background-radius: 6px; "
+                    + "-fx-padding: 8px 12px; "
+                    + "-fx-cursor: hand; "
+                    + "-fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.3), 4, 0, 0, 2);"
+            );
+        });
 
         Button btnCopiarIndividual = new Button("📋 Copiar");
-        btnCopiarIndividual.setStyle("-fx-font-size: 10; -fx-pref-height: 25; -fx-pref-width: 80;");
+        btnCopiarIndividual.setStyle(
+                "-fx-font-size: 12px; "
+                + "-fx-font-weight: bold; "
+                + "-fx-text-fill: white; "
+                + "-fx-background-color: linear-gradient(to bottom, #3b82f6, #2563eb); "
+                + "-fx-border-radius: 6px; "
+                + "-fx-background-radius: 6px; "
+                + "-fx-padding: 8px 12px; "
+                + "-fx-cursor: hand; "
+                + "-fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.3), 4, 0, 0, 2);"
+        );
+
+        // Efecto hover para el botón Copiar
+        btnCopiarIndividual.setOnMouseEntered(e -> {
+            btnCopiarIndividual.setStyle(
+                    "-fx-font-size: 12px; "
+                    + "-fx-font-weight: bold; "
+                    + "-fx-text-fill: white; "
+                    + "-fx-background-color: linear-gradient(to bottom, #2563eb, #1d4ed8); "
+                    + "-fx-border-radius: 6px; "
+                    + "-fx-background-radius: 6px; "
+                    + "-fx-padding: 8px 12px; "
+                    + "-fx-cursor: hand; "
+                    + "-fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.5), 6, 0, 0, 3); "
+                    + "-fx-translate-y: -1px;"
+            );
+        });
+
+        btnCopiarIndividual.setOnMouseExited(e -> {
+            btnCopiarIndividual.setStyle(
+                    "-fx-font-size: 12px; "
+                    + "-fx-font-weight: bold; "
+                    + "-fx-text-fill: white; "
+                    + "-fx-background-color: linear-gradient(to bottom, #3b82f6, #2563eb); "
+                    + "-fx-border-radius: 6px; "
+                    + "-fx-background-radius: 6px; "
+                    + "-fx-padding: 8px 12px; "
+                    + "-fx-cursor: hand; "
+                    + "-fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.3), 4, 0, 0, 2);"
+            );
+        });
+
+        // Efecto al hacer click
+        btnCambiarImagen.setOnMousePressed(e -> {
+            btnCambiarImagen.setStyle(btnCambiarImagen.getStyle() + " -fx-translate-y: 1px;");
+        });
+
+        btnCopiarIndividual.setOnMousePressed(e -> {
+            btnCopiarIndividual.setStyle(btnCopiarIndividual.getStyle() + " -fx-translate-y: 1px;");
+        });
+
+        // Acciones de los botones
+        btnCambiarImagen.setOnAction(e -> seleccionarImagen(producto));
         btnCopiarIndividual.setOnAction(e -> copiarProductoIndividual(producto, imageView));
 
         botonesIndividuales.getChildren().addAll(btnCambiarImagen, btnCopiarIndividual);
 
-        // Información del producto
+        // ✅ INFORMACIÓN DEL PRODUCTO
         Label lblNombre = new Label(producto.getNombre());
-        lblNombre.setStyle("-fx-font-weight: bold; -fx-font-size: 16; -fx-text-fill: #2c3e50;");
+        lblNombre.setStyle("-fx-font-weight: bold; -fx-font-size: 16; -fx-text-fill: #2c3e50; -fx-wrap-text: true;");
+        lblNombre.setMaxWidth(270);
 
         Label lblPrecio = new Label("💰 Precio: $" + String.format("%,.0f", producto.getPrecio()));
         lblPrecio.setStyle("-fx-font-size: 14; -fx-text-fill: #27ae60; -fx-font-weight: bold;");
@@ -1330,15 +1425,18 @@ public class ControladorDashboard implements Initializable {
         Label lblStock = new Label("📦 Stock: " + producto.getCantidadDisponible() + " unidades");
         lblStock.setStyle("-fx-font-size: 14; -fx-text-fill: #3498db;");
 
+        // Categoría (si existe)
         if (producto.getCategoria() != null && !producto.getCategoria().isEmpty()) {
             Label lblCategoria = new Label("🏷️ " + producto.getCategoria());
-            lblCategoria.setStyle("-fx-font-size: 12; -fx-text-fill: #7f8c8d;");
+            lblCategoria.setStyle("-fx-font-size: 12; -fx-text-fill: #7f8c8d; -fx-wrap-text: true;");
             tarjeta.getChildren().add(lblCategoria);
         }
 
+        // Descripción (si existe)
         if (producto.getDescripcion() != null && !producto.getDescripcion().isEmpty()) {
             TextArea txtDescripcion = new TextArea(producto.getDescripcion());
             txtDescripcion.setEditable(false);
+            txtDescripcion.setWrapText(true);
             txtDescripcion.setPrefRowCount(2);
             txtDescripcion.setPrefHeight(60);
             txtDescripcion.setStyle("-fx-font-size: 12; -fx-background-color: #f8f9fa; -fx-border-color: #e9ecef;");
