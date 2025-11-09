@@ -12,6 +12,7 @@ import java.io.File;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.List;
+import java.util.Optional;
 import java.util.ResourceBundle;
 import javafx.animation.Animation;
 import javafx.animation.AnimationTimer;
@@ -24,6 +25,7 @@ import javafx.collections.ObservableList;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXMLLoader;
+import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
@@ -31,9 +33,11 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
@@ -52,6 +56,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.util.Callback;
 import javafx.util.Duration;
 
 /**
@@ -63,7 +68,6 @@ public class ControladorDashboard implements Initializable {
     @FXML
     private Label lblUsuario;
 
-    // Componentes de Productos
     @FXML
     private TableView<Producto> tablaProductos;
     @FXML
@@ -78,12 +82,16 @@ public class ControladorDashboard implements Initializable {
     private TextArea txtDescripcion;
     @FXML
     private VBox formContainer;
+    @FXML
+    private Button btnAgregar;
+    @FXML
+    private Button btnEditar;
+    @FXML
+    private Button btnEliminar;
 
-    // Componentes de Catalogo para WhatsApp
     @FXML
     private TextArea areaCatalogo;
 
-    // Componentes de Reservas
     @FXML
     private TableView<Reserva> tablaReservas;
 
@@ -98,7 +106,6 @@ public class ControladorDashboard implements Initializable {
     @FXML
     private TableColumn<Producto, Double> colPrecio;
 
-    // Datos
     private ObservableList<Producto> productosData;
     private ObservableList<Reserva> reservasData;
     private Usuario usuarioLogueado;
@@ -120,13 +127,15 @@ public class ControladorDashboard implements Initializable {
         );
         gestorGit.limpiarCarpetasTemporalesPendientes();
         configurarColumnasTablaCompleta();
+
+        configurarResaltadoStockBajo();
+        agregarColumnaEdicionRapida();
         animarBorde(btnGitHub);
     }
 
     public void animarBorde(Button btn) {
         final long startTime = System.nanoTime();
 
-        // ✨ Efecto de brillo general en el botón
         DropShadow glow = new DropShadow();
         glow.setRadius(15);
         glow.setSpread(0.6);
@@ -138,12 +147,10 @@ public class ControladorDashboard implements Initializable {
             public void handle(long now) {
                 double t = (now - startTime) / 1_000_000_000.0;
 
-                // 🎨 Colores tipo arcoíris muy saturados y brillantes
                 double hue1 = (t * 120) % 360;
                 double hue2 = (hue1 + 120) % 360;
                 double hue3 = (hue1 + 240) % 360;
 
-                // Aumentamos la saturación y brillo al máximo
                 Color c1 = Color.hsb(hue1, 1.0, 1.0);
                 Color c2 = Color.hsb(hue2, 1.0, 1.0);
                 Color c3 = Color.hsb(hue3, 1.0, 1.0);
@@ -152,7 +159,6 @@ public class ControladorDashboard implements Initializable {
                 String color2 = toRgbString(c2);
                 String color3 = toRgbString(c3);
 
-                // 🌟 Estilo del botón con borde animado
                 btn.setStyle(
                         "-fx-background-radius: 12;"
                         + "-fx-border-radius: 12;"
@@ -164,7 +170,6 @@ public class ControladorDashboard implements Initializable {
                         + "-fx-font-size: 14px;"
                 );
 
-                // 🔥 Hace que el glow cambie suavemente de color también
                 glow.setColor(c1.interpolate(c2, 0.5));
             }
         };
@@ -179,6 +184,26 @@ public class ControladorDashboard implements Initializable {
         return String.format("rgb(%d,%d,%d)", r, g, b);
     }
 
+    private String crearEnlaceWhatsApp(String mensaje) {
+        try {
+            String telefono = usuarioLogueado.getTelefono();
+
+            if (telefono == null || telefono.trim().isEmpty()) {
+                throw new IllegalStateException("Número de WhatsApp no configurado");
+            }
+
+            telefono = telefono.replaceAll("[^0-9]", "");
+
+            String enlaceWhatsApp = "https://wa.me/" + telefono + "?text="
+                    + java.net.URLEncoder.encode(mensaje, "UTF-8");
+            return enlaceWhatsApp;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("No se pudo crear enlace de WhatsApp: " + e.getMessage());
+        }
+    }
+
     private void verificarConfiguracionColumnas() {
         System.out.println("=== VERIFICANDO CONFIGURACIÓN DE COLUMNAS ===");
         System.out.println("Número de columnas: " + tablaProductos.getColumns().size());
@@ -189,8 +214,6 @@ public class ControladorDashboard implements Initializable {
                     + " - CellFactory: " + col.getCellFactory()
                     + " - CellValueFactory: " + col.getCellValueFactory());
         }
-
-        // Verificar datos de muestra
         if (productosData != null && !productosData.isEmpty()) {
             Producto primerProducto = productosData.get(0);
             System.out.println("Primer producto - Precio: " + primerProducto.getPrecio()
@@ -199,15 +222,12 @@ public class ControladorDashboard implements Initializable {
     }
 
     private void configurarColumnasTablaCompleta() {
-        // Limpiar columnas existentes
         tablaProductos.getColumns().clear();
 
-        // Columna NOMBRE
         TableColumn<Producto, String> colNombre = new TableColumn<>("Producto");
         colNombre.setCellValueFactory(new PropertyValueFactory<>("nombre"));
         colNombre.setPrefWidth(171);
 
-        // Columna PRECIO - CON FORMATEO
         TableColumn<Producto, Double> colPrecio = new TableColumn<>("Precio");
         colPrecio.setCellValueFactory(new PropertyValueFactory<>("precio"));
         colPrecio.setCellFactory(column -> new TableCell<Producto, Double>() {
@@ -217,41 +237,32 @@ public class ControladorDashboard implements Initializable {
                 if (empty || precio == null) {
                     setText(null);
                 } else {
-                    // Formateo garantizado
                     setText(formatoPesosColombianosGarantizado(precio));
                 }
             }
         });
         colPrecio.setPrefWidth(172);
 
-        // Columna STOCK
         TableColumn<Producto, Integer> colStock = new TableColumn<>("Stock");
         colStock.setCellValueFactory(new PropertyValueFactory<>("cantidadDisponible"));
         colStock.setPrefWidth(163);
 
-        // Columna CATEGORÍA
         TableColumn<Producto, String> colCategoria = new TableColumn<>("Categoría");
         colCategoria.setCellValueFactory(new PropertyValueFactory<>("categoria"));
         colCategoria.setPrefWidth(202);
 
-        // Agregar todas las columnas
         tablaProductos.getColumns().addAll(colNombre, colPrecio, colStock, colCategoria);
     }
 
-    /**
-     * Formateo 100% garantizado para pesos colombianos
-     */
     private String formatoPesosColombianosGarantizado(double precio) {
         long precioLong = (long) precio;
 
-        // Formatear manualmente con separadores de miles
         String precioStr = String.valueOf(precioLong);
         StringBuilder resultado = new StringBuilder("$");
 
         int longitud = precioStr.length();
         for (int i = 0; i < longitud; i++) {
             resultado.append(precioStr.charAt(i));
-            // Agregar punto cada 3 dígitos (excepto al final)
             if ((longitud - i - 1) % 3 == 0 && i < longitud - 1) {
                 resultado.append('.');
             }
@@ -261,7 +272,6 @@ public class ControladorDashboard implements Initializable {
     }
 
     private void configurarColumnasTabla() {
-        // Configurar el cellFactory para la columna de precio
         if (colPrecio != null) {
             colPrecio.setCellFactory(column -> new TableCell<Producto, Double>() {
                 @Override
@@ -279,17 +289,11 @@ public class ControladorDashboard implements Initializable {
         }
     }
 
-    /**
-     * Formatea un valor double a formato pesos colombianos Ejemplo: 100000 ->
-     * "$100.000", 2500 -> "$2.500"
-     */
     private String formatoPesosColombianos(double precio) {
         try {
-            // Formateo directo y simple
             long precioEntero = (long) precio;
             String precioStr = String.valueOf(precioEntero);
 
-            // Agregar separadores de miles
             StringBuilder sb = new StringBuilder();
             int contador = 0;
 
@@ -305,90 +309,120 @@ public class ControladorDashboard implements Initializable {
             return "$" + sb.reverse().toString();
 
         } catch (Exception e) {
-            // Fallback
             return "$" + String.format("%,.0f", precio).replace(",", ".");
         }
     }
 
-    /**
-     * Establece el usuario logueado y carga todos los datos
-     */
     public void setUsuarioLogueado(Usuario usuario) {
         this.usuarioLogueado = usuario;
         lblUsuario.setText(usuario.getNombreCompleto() + " (" + usuario.getTipoUsuario() + ")");
-
-        SimuladorWhatsapp.setDashboardInstance(this);
         cargarDatosIniciales();
     }
 
-    /**
-     * Carga todos los datos iniciales del usuario
-     */
     private void cargarDatosIniciales() {
         cargarProductos();
-        cargarReservas();
-        generarCatalogo();
     }
 
-    /**
-     * Carga los productos del usuario desde la base de datos
-     */
+    private void verificarStockBajo() {
+        StringBuilder alertas = new StringBuilder();
+        int contador = 0;
+
+        for (Producto producto : productosData) {
+            if (producto.getCantidadDisponible() <= 5) {
+                contador++;
+                alertas.append("• ").append(producto.getNombre())
+                        .append(" - Solo ").append(producto.getCantidadDisponible())
+                        .append(" unidades\n");
+            }
+        }
+
+        if (contador > 0) {
+            mostrarAlerta("🚨 STOCK BAJO!!!",
+                    "Tienes " + contador + " productos con stock bajo:\n\n" + alertas.toString());
+        }
+    }
+
     @FXML
     private void cargarProductos() {
         if (usuarioLogueado != null) {
             try {
-                productosData = ControladorBD.obtenerProductosPorUsuario(usuarioLogueado.getId());
+                if (productosData == null) {
+                    productosData = FXCollections.observableArrayList();
+                }
+                productosData.clear();
+                productosData.addAll(ControladorBD.obtenerProductosPorUsuario(usuarioLogueado.getId()));
+
                 tablaProductos.setItems(productosData);
                 tablaProductos.refresh();
+
+                verificarStockBajo();
             } catch (Exception e) {
                 mostrarAlerta("Error", "No se pudieron cargar los productos: " + e.getMessage());
             }
         }
     }
 
-    /**
-     * Carga las reservas del usuario desde la base de datos
-     */
-    @FXML
-    private void cargarReservas() {
-        if (usuarioLogueado != null) {
-            try {
-                reservasData = ControladorBD.obtenerReservasPorEmprendedor(usuarioLogueado.getId());
-                tablaReservas.setItems(reservasData);
-                tablaReservas.refresh();
+    private void configurarResaltadoStockBajo() {
+        tablaProductos.setRowFactory(tv -> new TableRow<Producto>() {
+            @Override
+            protected void updateItem(Producto producto, boolean empty) {
+                super.updateItem(producto, empty);
 
-            } catch (Exception e) {
-                mostrarAlerta("Error", "No se pudieron cargar las reservas: " + e.getMessage());
+                setStyle("");
+                if (getTableView() != null) {
+                    getTableView().setStyle(""); // Limpiar estilos de la tabla
+                }
+
+                if (producto == null || empty) {
+                    return;
+                }
+
+                int stock = producto.getCantidadDisponible();
+
+                if (stock <= 1) {
+                    setStyle("-fx-background-color: #d41515; -fx-border-color: #b01515; -fx-border-width: 0 0 1 0; -fx-font-weight: bold; -fx-text-fill: white;");
+                } else if (stock <= 3) {
+                    setStyle("-fx-background-color: #fc7703; -fx-border-color: #b35e14; -fx-border-width: 0 0 1 0; -fx-font-weight: bold; -fx-text-fill: white;");
+                } else if (stock <= 5) {
+                    setStyle("-fx-background-color: #fff9c4; -fx-border-color: #fbc02d; -fx-border-width: 0 0 1 0; -fx-text-fill: black;");
+                }
             }
-        }
+        });
     }
 
-    /**
-     * Muestra el formulario para agregar nuevo producto
-     */
+    @FXML
+    private void desactivarBtns() {
+        btnAgregar.setDisable(true);
+        btnEditar.setDisable(true);
+        btnEliminar.setDisable(true);
+    }
+
+    @FXML
+    private void activarBtns() {
+        btnAgregar.setDisable(false);
+        btnEditar.setDisable(false);
+        btnEliminar.setDisable(false);
+    }
+
     @FXML
     private void mostrarFormularioProducto() {
         formContainer.setVisible(true);
+        desactivarBtns();
         editandoProducto = false;
+
         limpiarFormulario();
     }
 
-    /**
-     * Oculta el formulario de producto
-     */
     @FXML
     private void ocultarFormulario() {
         formContainer.setVisible(false);
+        activarBtns();
         limpiarFormulario();
     }
 
-    /**
-     * Guarda un producto nuevo o editado en la base de datos
-     */
     @FXML
     private void guardarProducto() {
         try {
-            // Validar campos obligatorios
             String nombre = txtNombreProducto.getText().trim();
             String descripcion = txtDescripcion.getText().trim();
             String precioText = txtPrecio.getText().trim();
@@ -412,7 +446,6 @@ public class ControladorDashboard implements Initializable {
                 return;
             }
 
-            // ✅ CONVERSIÓN MEJORADA DEL PRECIO - ACEPTA CON Y SIN PUNTO
             double precio = convertirPrecioTextoANumero(precioText);
 
             if (precio <= 0) {
@@ -420,18 +453,17 @@ public class ControladorDashboard implements Initializable {
                 return;
             }
 
-            int stock = Integer.parseInt(stockText.replace(".", "")); // También quitar puntos del stock
+            int stock = Integer.parseInt(stockText.replace(".", ""));
 
             if (stock < 0) {
                 mostrarAlerta("Error", "El stock no puede ser negativo");
                 return;
             }
 
-            // ... el resto del código permanece igual
             Producto producto;
             if (editandoProducto) {
-                // Modo edición
                 producto = productoEditando;
+
                 producto.setNombre(nombre);
                 producto.setDescripcion(descripcion);
                 producto.setPrecio(precio);
@@ -448,14 +480,19 @@ public class ControladorDashboard implements Initializable {
                     return;
                 }
             } else {
-                // Modo nuevo
                 producto = new Producto(usuarioLogueado.getId(), nombre, descripcion, precio, stock, categoria);
                 boolean exito = ControladorBD.agregarProducto(producto);
 
                 if (exito) {
                     mostrarAlerta("Éxito", "Producto agregado correctamente");
+                    btnAgregar.setDisable(false);
+                    btnEditar.setDisable(false);
+                    btnEliminar.setDisable(false);
                 } else {
                     mostrarAlerta("Error", "No se pudo agregar el producto");
+                    btnAgregar.setDisable(false);
+                    btnEditar.setDisable(false);
+                    btnEliminar.setDisable(false);
                     return;
                 }
             }
@@ -471,45 +508,105 @@ public class ControladorDashboard implements Initializable {
         }
     }
 
-    /**
-     * Convierte texto de precio a número, aceptando ambos formatos: - Con
-     * punto: "100.000" → 100000.0 - Sin punto: "100000" → 100000.0 - Con
-     * decimales: "100.500,50" → 100500.50
-     */
+    private void agregarColumnaEdicionRapida() {
+        TableColumn<Producto, Void> colAcciones = new TableColumn<>("Acciones");
+
+        Callback<TableColumn<Producto, Void>, TableCell<Producto, Void>> cellFactory
+                = new Callback<>() {
+            @Override
+            public TableCell<Producto, Void> call(final TableColumn<Producto, Void> param) {
+                return new TableCell<Producto, Void>() {
+                    private final Button btnMas = new Button("+1");
+                    private final Button btnMenos = new Button("-1");
+                    private final HBox panel = new HBox(5, btnMenos, btnMas);
+
+                    {
+                        btnMas.setOnAction(e -> {
+                            Producto producto = getTableView().getItems().get(getIndex());
+                            actualizarStockRapido(producto, 1);
+                        });
+                        btnMenos.setOnAction(e -> {
+                            Producto producto = getTableView().getItems().get(getIndex());
+                            actualizarStockRapido(producto, -1);
+                        });
+
+                        btnMas.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-size: 10px;");
+                        btnMenos.setStyle("-fx-background-color: #f44336; -fx-text-fill: white; -fx-font-size: 10px;");
+                        panel.setAlignment(Pos.CENTER);
+                    }
+
+                    @Override
+                    protected void updateItem(Void item, boolean empty) {
+                        super.updateItem(item, empty);
+                        setGraphic(empty ? null : panel);
+                    }
+                };
+            }
+        };
+
+        colAcciones.setCellFactory(cellFactory);
+        tablaProductos.getColumns().add(colAcciones);
+    }
+
+    private void actualizarStockRapido(Producto producto, int cambio) {
+        int nuevoStock = producto.getCantidadDisponible() + cambio;
+
+        if (nuevoStock < 0) {
+            mostrarAlerta("Error", "No puede quedar stock negativo");
+            return;
+        }
+
+        producto.setCantidadDisponible(nuevoStock);
+        boolean exito = ControladorBD.actualizarStockProducto(producto.getId(), nuevoStock);
+
+        if (exito) {
+            tablaProductos.refresh();
+        } else {
+            mostrarAlerta("Error", "No se pudo actualizar el stock");
+        }
+    }
+
     private double convertirPrecioTextoANumero(String precioText) {
         if (precioText == null || precioText.trim().isEmpty()) {
             throw new NumberFormatException("Precio vacío");
         }
-
         String textoLimpio = precioText.trim();
-
-        // Remover símbolos de moneda si existen
         textoLimpio = textoLimpio.replace("$", "").replace("€", "").replace("COP", "").trim();
 
-        // Verificar si el texto contiene punto como separador de miles
-        if (textoLimpio.contains(".") && textoLimpio.contains(",")) {
-            // Formato: "1.000,50" → punto para miles, coma para decimales
+        if (textoLimpio.toUpperCase().contains("E")) {
+            try {
+                double resultado = Double.parseDouble(textoLimpio);
+                System.out.println("🔍 NOTACIÓN CIENTÍFICA → " + resultado);
+                return resultado;
+            } catch (NumberFormatException e) {
+                throw new NumberFormatException("Formato científico inválido: " + textoLimpio);
+            }
+        }
+
+        int countPuntos = textoLimpio.length() - textoLimpio.replace(".", "").length();
+        int countComas = textoLimpio.length() - textoLimpio.replace(",", "").length();
+
+        if (countPuntos > 0 && countComas > 0) {
             textoLimpio = textoLimpio.replace(".", "").replace(",", ".");
-        } else if (textoLimpio.contains(".") && !textoLimpio.contains(",")) {
-            // Formato: "1.000" o "1.000.000" → solo puntos (separador de miles)
-            // Contar cuántos puntos hay para determinar si es decimal o separador de miles
-            long countPuntos = textoLimpio.chars().filter(ch -> ch == '.').count();
-            if (countPuntos == 1) {
-                // Podría ser decimal o miles, asumimos miles
-                textoLimpio = textoLimpio.replace(".", "");
-            } else {
-                // Múltiples puntos = separadores de miles
+        } else if (countPuntos > 1) {
+            textoLimpio = textoLimpio.replace(".", "");
+        } else if (countPuntos == 1) {
+            int posPunto = textoLimpio.indexOf('.');
+            if (textoLimpio.length() - posPunto > 3) {
                 textoLimpio = textoLimpio.replace(".", "");
             }
         }
 
-        // Ahora convertir a double
-        return Double.parseDouble(textoLimpio);
+        System.out.println("🔍 TEXTO LIMPIO: '" + textoLimpio + "'");
+
+        try {
+            double resultado = Double.parseDouble(textoLimpio);
+            return resultado;
+        } catch (NumberFormatException e) {
+            throw new NumberFormatException("Formato inválido: '" + precioText + "' → '" + textoLimpio + "'");
+        }
     }
 
-    /**
-     * Genera el catálogo en formato WhatsApp
-     */
     @FXML
     private void generarCatalogo() {
         if (usuarioLogueado != null && productosData != null) {
@@ -524,18 +621,13 @@ public class ControladorDashboard implements Initializable {
         }
     }
 
-    /**
-     * Copia el catálogo al portapapeles para WhatsApp
-     */
     @FXML
     private void copiarCatalogoPortapapeles() {
         try {
             if (!contenedorCatalogoVisual.getChildren().isEmpty()) {
-                // Crear imagen temporal
                 File tempFile = File.createTempFile("catalogo_temp", ".png");
                 crearImagenDelCatalogo(tempFile);
 
-                // Copiar imagen al portapapeles
                 Image image = new Image(tempFile.toURI().toString());
                 ClipboardContent content = new ClipboardContent();
                 content.putImage(image);
@@ -543,21 +635,19 @@ public class ControladorDashboard implements Initializable {
 
                 Clipboard.getSystemClipboard().setContent(content);
 
-                // Eliminar archivo temporal
                 tempFile.delete();
 
-                mostrarAlerta("Éxito", "✅ Catálogo visual copiado al portapapeles como imagen!\n\nPuedes pegarlo en cualquier aplicación que soporte imágenes.");
+                mostrarAlerta("Éxito", "Catálogo visual copiado al portapapeles como imagen!\n\nPuedes pegarlo en cualquier aplicación que soporte imágenes.");
 
-            } // Si no hay catalogo visual copiar el txt
-            else if (areaCatalogo.getText() != null && !areaCatalogo.getText().trim().isEmpty()) {
+            } else if (areaCatalogo.getText() != null && !areaCatalogo.getText().trim().isEmpty()) {
                 String catalogo = areaCatalogo.getText();
                 Clipboard clipboard = Clipboard.getSystemClipboard();
                 ClipboardContent content = new ClipboardContent();
                 content.putString(catalogo);
                 clipboard.setContent(content);
-                mostrarAlerta("Éxito", "✅ Catálogo de texto copiado al portapapeles\n\n¡Ahora péguelo en WhatsApp!");
+                mostrarAlerta("Éxito", "Catalogo de texto copiado al portapapeles\n\n¡Ahora peguelo en WhatsApp!");
             } else {
-                mostrarAlerta("Error", "No hay catálogo para copiar. Genere el catálogo primero.");
+                mostrarAlerta("Error", "No hay catalogo para copiar. Genere el catalogo primero.");
             }
 
         } catch (Exception e) {
@@ -565,33 +655,25 @@ public class ControladorDashboard implements Initializable {
         }
     }
 
-    /**
-     * Edita el producto seleccionado en la tabla
-     */
     @FXML
     private void editarProducto() {
         Producto productoSeleccionado = tablaProductos.getSelectionModel().getSelectedItem();
         if (productoSeleccionado != null) {
-            // Llenar formulario con datos del producto
+            desactivarBtns();
             txtNombreProducto.setText(productoSeleccionado.getNombre());
             txtDescripcion.setText(productoSeleccionado.getDescripcion() != null ? productoSeleccionado.getDescripcion() : "");
-            txtPrecio.setText(String.valueOf(productoSeleccionado.getPrecio()));
+            txtPrecio.setText(String.valueOf((long) productoSeleccionado.getPrecio()));
             txtStock.setText(String.valueOf(productoSeleccionado.getCantidadDisponible()));
             txtCategoria.setText(productoSeleccionado.getCategoria() != null ? productoSeleccionado.getCategoria() : "");
-
-            // Mostrar formulario en modo edición
+            desactivarBtns();
             formContainer.setVisible(true);
             editandoProducto = true;
             productoEditando = productoSeleccionado;
-
         } else {
             mostrarAlerta("Error", "Selecciona un producto de la tabla para editar");
         }
     }
 
-    /**
-     * Elimina el producto seleccionado de la tabla Y de la base de datos
-     */
     @FXML
     private void eliminarProducto() {
         Producto productoSeleccionado = tablaProductos.getSelectionModel().getSelectedItem();
@@ -606,7 +688,6 @@ public class ControladorDashboard implements Initializable {
 
             if (alert.showAndWait().get() == ButtonType.OK) {
                 try {
-                    // Usar la versión completa que elimina reservas también
                     boolean exito = ControladorBD.eliminarProductoCompleto(productoSeleccionado.getId());
 
                     if (exito) {
@@ -627,9 +708,6 @@ public class ControladorDashboard implements Initializable {
         }
     }
 
-    /**
-     * Maneja el doble click en la tabla para edición rápida
-     */
     @FXML
     private void manejarClickTabla(javafx.scene.input.MouseEvent event) {
         if (event.getClickCount() == 2) {
@@ -637,9 +715,6 @@ public class ControladorDashboard implements Initializable {
         }
     }
 
-    /**
-     * Cierra la sesión y vuelve al login
-     */
     @FXML
     private void cerrarSesion() {
         try {
@@ -652,18 +727,29 @@ public class ControladorDashboard implements Initializable {
                 FXMLLoader loader = new FXMLLoader(getClass().getResource("/Vista/Login.fxml"));
                 Parent root = loader.load();
                 Stage stage = (Stage) lblUsuario.getScene().getWindow();
-                stage.setScene(new Scene(root));
+
+                stage.setMaximized(false);
+                stage.setResizable(false);
+                stage.setMinWidth(380);
+                stage.setMinHeight(435);
+                stage.setWidth(380);
+                stage.setHeight(435);
+                Scene scene = new Scene(root);
+                stage.setScene(scene);
+
                 stage.centerOnScreen();
                 stage.setTitle("Iniciar Sesión - Impulsa360");
+
+                Platform.runLater(() -> {
+                    stage.setWidth(380);
+                    stage.setHeight(435);
+                });
             }
         } catch (Exception e) {
             mostrarAlerta("Error", "No se pudo cerrar la sesión: " + e.getMessage());
         }
     }
 
-    /**
-     * Limpia el formulario de producto
-     */
     private void limpiarFormulario() {
         txtNombreProducto.clear();
         txtDescripcion.clear();
@@ -674,9 +760,6 @@ public class ControladorDashboard implements Initializable {
         productoEditando = null;
     }
 
-    /**
-     * Muestra una alerta al usuario
-     */
     private void mostrarAlerta(String titulo, String mensaje) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle(titulo);
@@ -685,270 +768,15 @@ public class ControladorDashboard implements Initializable {
         alert.showAndWait();
     }
 
-    /**
-     * Getter para el usuario logueado (útil para pruebas)
-     */
     public Usuario getUsuarioLogueado() {
         return usuarioLogueado;
     }
 
-    /*
-    Simulacion
-    Simulacion
-    Simulacion
-     */
-    @FXML
-    private TextField txtNumeroClienteSimulado;
-    @FXML
-    private TextField txtMensajeClienteSimulado;
-    @FXML
-    private TextField txtNumeroRespuesta;
-    @FXML
-    private Button btnProcesarSimulacion;
-
-    @FXML
-    private void simularCliente1() {
-        txtNumeroClienteSimulado.setText("+573001234567");
-        txtMensajeClienteSimulado.setText("Hola! Me podrías enviar el catálogo de productos?");
-        procesarMensajeAutomatico();
-    }
-
-    @FXML
-    private void simularCliente2() {
-        txtNumeroClienteSimulado.setText("+573009876543");
-        txtMensajeClienteSimulado.setText("RESERVAR 1 2");
-        procesarMensajeAutomatico();
-    }
-
-    @FXML
-    private void simularCliente3() {
-        txtNumeroClienteSimulado.setText("+573005551234");
-        txtMensajeClienteSimulado.setText("RESERVAR 2 1");
-        procesarMensajeAutomatico();
-    }
-
-    @FXML
-    private void enviarCatalogoWhatsApp() {
-        String numero = txtNumeroRespuesta.getText().trim();
-        if (numero.isEmpty()) {
-            mostrarAlerta("Error", "Ingrese un número de WhatsApp");
-            return;
-        }
-        abrirWhatsAppConCatalogo(numero);
-    }
-
-    @FXML
-    private void enviarConfirmacionWhatsApp() {
-        String numero = txtNumeroRespuesta.getText().trim();
-        if (numero.isEmpty()) {
-            mostrarAlerta("Error", "Ingrese un número de WhatsApp");
-            return;
-        }
-        abrirWhatsAppConConfirmacion(numero);
-    }
-
-    @FXML
-    private void procesarMensajeAutomatico() {
-        String numeroCliente = txtNumeroClienteSimulado.getText().trim();
-        String mensaje = txtMensajeClienteSimulado.getText().trim();
-
-        if (numeroCliente.isEmpty() || mensaje.isEmpty()) {
-            mostrarAlerta("Error", "Ingrese número y mensaje del cliente");
-            return;
-        }
-
-        procesarMensajeDirecto(numeroCliente, mensaje);
-
-        // Limpiar para próximo mensaje
-        txtMensajeClienteSimulado.clear();
-    }
-
-    private void procesarMensajeDirecto(String numeroCliente, String mensaje) {
-        String mensajeUpper = mensaje.toUpperCase();
-
-        if (mensajeUpper.contains("CATALOGO") || mensajeUpper.contains("PRODUCTOS")
-                || mensajeUpper.contains("TIENES") || mensajeUpper.contains("HOLA")
-                || mensajeUpper.contains("PRECIOS")) {
-
-            mostrarAlerta("Cliente Simulado",
-                    "📱 Cliente: " + numeroCliente + "\n"
-                    + "💬 Mensaje: " + mensaje + "\n\n"
-                    + "✅ El cliente solicitó el catálogo\n"
-                    + "📤 Abriendo WhatsApp para responder...");
-
-            abrirWhatsAppConCatalogo(numeroCliente);
-        } else if (mensajeUpper.startsWith("RESERVAR")) {
-            boolean exito = procesarReservaAutomatica(numeroCliente, mensajeUpper);
-
-            if (exito) {
-                mostrarAlerta("Reserva Automática",
-                        "📱 Cliente: " + numeroCliente + "\n"
-                        + "💬 Mensaje: " + mensaje + "\n\n"
-                        + "✅ RESERVA CREADA AUTOMÁTICAMENTE\n"
-                        + "📦 Se guardó en la base de datos\n"
-                        + "📤 Abriendo WhatsApp para confirmar...");
-
-                abrirWhatsAppConConfirmacion(numeroCliente);
-            }
-        } else {
-            mostrarAlerta("Mensaje No Reconocido",
-                    "📱 Cliente: " + numeroCliente + "\n"
-                    + "💬 Mensaje: " + mensaje + "\n\n"
-                    + "❌ Mensaje no reconocido\n"
-                    + "💡 El cliente puede escribir: CATALOGO o RESERVAR [número] [cantidad]");
-        }
-    }
-
-    public void procesarMensajeWhatsAppSimulado(String numeroCliente, String mensaje) {
-
-        // Actualizar los campos en la interfaz
-        txtNumeroClienteSimulado.setText(numeroCliente);
-        txtMensajeClienteSimulado.setText(mensaje);
-
-        // Procesar el mensaje directamente
-        procesarMensajeDirecto(numeroCliente, mensaje);
-    }
-
-    @FXML
-    private void simularMultiplesClientes() {
-        SimuladorWhatsapp.simularVariosClientes();
-    }
-
-    @FXML
-    private void verEstadoSimulador() {
-        String estado = SimuladorWhatsapp.getEstado();
-        String infoClientes = SimuladorWhatsapp.getInfoClientes();
-
-        mostrarAlerta("Estado del Simulador",
-                estado + "\n\n" + infoClientes);
-    }
-
-    @FXML
-    private void simularMensajePersonalizado() {
-        String mensaje = txtMensajeClienteSimulado.getText().trim();
-        if (!mensaje.isEmpty()) {
-            String numero = txtNumeroClienteSimulado.getText().trim();
-            if (numero.isEmpty()) {
-                numero = "+573001234567"; // Número por defecto
-            }
-            SimuladorWhatsapp.simularClienteConMensajePersonalizado(mensaje);
-        } else {
-            mostrarAlerta("Error", "Escribe un mensaje para simular");
-        }
-    }
-
-    private void abrirWhatsAppConCatalogo(String numeroCliente) {
-        try {
-            String catalogo = areaCatalogo.getText();
-            String numeroLimpio = numeroCliente.replaceAll("[^0-9+]", "");
-
-            String mensajeCodificado = java.net.URLEncoder.encode(catalogo, "UTF-8");
-            String enlace = "https://wa.me/" + numeroLimpio + "?text=" + mensajeCodificado;
-
-            java.awt.Desktop.getDesktop().browse(new java.net.URI(enlace));
-
-        } catch (Exception e) {
-            mostrarAlerta("Error", "No se pudo abrir WhatsApp: " + e.getMessage());
-        }
-    }
-
-    private void abrirWhatsAppConConfirmacion(String numeroCliente) {
-        try {
-            String confirmacion = "¡Reserva confirmada! Te contactaremos pronto para coordinar el pago y entrega. ¡Gracias por tu compra! 🛍️";
-            String numeroLimpio = numeroCliente.replaceAll("[^0-9+]", "");
-
-            String mensajeCodificado = java.net.URLEncoder.encode(confirmacion, "UTF-8");
-            String enlace = "https://wa.me/" + numeroLimpio + "?text=" + mensajeCodificado;
-
-            java.awt.Desktop.getDesktop().browse(new java.net.URI(enlace));
-
-        } catch (Exception e) {
-            mostrarAlerta("Error", "No se pudo abrir WhatsApp: " + e.getMessage());
-        }
-    }
-
-    //MÉTODO PARA PROCESAR RESERVAS AUTOMÁTICAMENTE - VERSIÓN CORREGIDA
-    private boolean procesarReservaAutomatica(String numeroCliente, String mensaje) {
-        try {
-            String[] partes = mensaje.split(" ");
-            int productoIndex = Integer.parseInt(partes[1]) - 1; // Convertir a base 0
-            int cantidad = Integer.parseInt(partes[2]);
-
-            // Filtrar productos disponibles
-            ObservableList<Producto> productosDisponibles = FXCollections.observableArrayList();
-            for (Producto producto : productosData) {
-                if (producto.isDisponible() && producto.getCantidadDisponible() > 0) {
-                    productosDisponibles.add(producto);
-                }
-            }
-
-            if (productoIndex >= 0 && productoIndex < productosDisponibles.size()) {
-                Producto producto = productosDisponibles.get(productoIndex);
-
-                if (cantidad <= producto.getCantidadDisponible()) {
-                    // CREAR RESERVA EN BASE DE DATOS
-                    Reserva reserva = new Reserva();
-                    reserva.setProductoId(producto.getId());
-                    reserva.setNombreCliente("Cliente " + numeroCliente);
-                    reserva.setTelefonoCliente(numeroCliente);
-                    reserva.setCantidad(cantidad);
-                    reserva.setTotal(producto.getPrecio() * cantidad);
-                    reserva.setEstado("Confirmada");
-
-                    boolean exitoBD = ControladorBD.crearReserva(reserva);
-
-                    if (exitoBD) {
-                        //ACTUALIZAR STOCK EN LA BASE DE DATOS
-                        int nuevoStock = producto.getCantidadDisponible() - cantidad;
-                        boolean stockActualizado = ControladorBD.actualizarStockProducto(producto.getId(), nuevoStock);
-
-                        if (stockActualizado) {
-                            //ACTUALIZAR EL OBJETO EN MEMORIA
-                            producto.setCantidadDisponible(nuevoStock);
-
-                            //ACTUALIZAR LA TABLA EN LA INTERFAZ
-                            tablaProductos.refresh(); // Esto actualiza la tabla visible
-
-                            // ACTUALIZAR OTRAS SECCIONES
-                            cargarReservas();
-                            generarCatalogo();
-
-                            return true;
-                        } else {
-                            System.err.println("❌ Error: No se pudo actualizar el stock en la BD");
-                            return false;
-                        }
-                    }
-                } else {
-                    mostrarAlerta("Stock Insuficiente",
-                            "❌ El cliente pidió " + cantidad + " unidades pero solo hay "
-                            + producto.getCantidadDisponible() + " disponibles.");
-                }
-            } else {
-                mostrarAlerta("Producto No Válido",
-                        "❌ El producto número " + (productoIndex + 1) + " no existe o no está disponible.");
-            }
-
-            return false;
-
-        } catch (Exception e) {
-            mostrarAlerta("Error", "Formato incorrecto. Use: RESERVAR [número] [cantidad]");
-            return false;
-        }
-    }
-
-    //    FIN SIMULACIONNN
-    //    FIN SIMULACIONNN
-    //    FIN SIMULACIONNN
-    //    FIN SIMULACIONNN
-    //    FIN SIMULACIONNN
     @FXML
     private void generarCatalogoVisual() {
         try {
-            // Limpiar el contenedor
             contenedorCatalogoVisual.getChildren().clear();
 
-            // Obtener productos del usuario actual
             List<Producto> productos = ControladorBD.obtenerProductosPorUsuario(usuarioLogueado.getId());
 
             if (productos.isEmpty()) {
@@ -958,7 +786,6 @@ public class ControladorDashboard implements Initializable {
                 return;
             }
 
-            // ✅ CORREGIDO: Crear GridPane para organizar las tarjetas
             GridPane gridProductos = new GridPane();
             gridProductos.setHgap(20);
             gridProductos.setVgap(20);
@@ -966,17 +793,14 @@ public class ControladorDashboard implements Initializable {
 
             int columna = 0;
             int fila = 0;
-            int maxColumnas = 4; // Máximo 4 columnas
+            int maxColumnas = 4;
 
-            // Crear tarjetas para cada producto
             for (Producto producto : productos) {
                 if (producto.isDisponible() && producto.getCantidadDisponible() > 0) {
                     VBox tarjetaProducto = crearTarjetaProductoVisual(producto);
 
-                    // ✅ CORREGIDO: Agregar al grid en lugar de directamente al contenedor
                     gridProductos.add(tarjetaProducto, columna, fila);
 
-                    // Mover a la siguiente columna/fila
                     columna++;
                     if (columna >= maxColumnas) {
                         columna = 0;
@@ -985,14 +809,12 @@ public class ControladorDashboard implements Initializable {
                 }
             }
 
-            // ✅ CORREGIDO: Agregar el grid al contenedor
             contenedorCatalogoVisual.getChildren().add(gridProductos);
 
-            // Mostrar mensaje de éxito
             Alert alert = new Alert(Alert.AlertType.INFORMATION);
             alert.setTitle("Catálogo Generado");
             alert.setHeaderText(null);
-            alert.setContentText("✅ Se generaron " + productos.size() + " productos en el catálogo visual");
+            alert.setContentText("Se generaron " + productos.size() + " productos en el catálogo visual");
             alert.showAndWait();
 
         } catch (Exception e) {
@@ -1005,229 +827,225 @@ public class ControladorDashboard implements Initializable {
             StringBuilder html = new StringBuilder();
 
             html.append("""
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Catálogo de Productos - Impulsa360</title>
-    <style>
-        body {
-            font-family: 'Arial', sans-serif;
-            margin: 0;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-        }
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            overflow: hidden;
-        }
-        .header {
-            text-align: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 40px 20px;
-            margin-bottom: 30px;
-        }
-        .header h1 {
-            margin: 0;
-            font-size: 2.5em;
-            font-weight: bold;
-        }
-        .header p {
-            margin: 10px 0 0 0;
-            font-size: 1.2em;
-            opacity: 0.9;
-        }
-        /* ✅ GRID DE 2 COLUMNAS - SIMÉTRICO */
-        .productos-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 30px;
-            padding: 30px;
-            margin: 0 auto;
-        }
-        .producto-card {
-            background: white;
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-            transition: all 0.3s ease;
-            border: 1px solid #e9ecef;
-            position: relative;
-            overflow: hidden;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            height: fit-content;
-            min-height: 550px; /* ✅ ALTURA MÍNIMA PARA SIMETRÍA */
-        }
-        .producto-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 12px 30px rgba(0,0,0,0.2);
-        }
-         .producto-imagen-container {
-                    text-align: center;
-                    margin: 0 auto 20px auto;
-                    width: 100%;
-                    height: 350px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    overflow: hidden;
-                    border-radius: 12px;
-                    background: #f8f9fa; /* ✅ FONDO NEUTRO */
-                    border: 2px solid #e9ecef;
-                }
-                .producto-imagen {
-                    max-width: 100%;
-                    max-height: 100%;
-                    width: auto;
-                    height: auto;
-                    object-fit: contain; 
-                    border-radius: 10px;
-                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-                }
-                .producto-imagen-placeholder {
-                    width: 100%;
-                    height: 100%;
-                    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-                    border-radius: 12px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    color: white;
-                    font-weight: bold;
-                    font-size: 1.2em;
-                    border: 3px dashed #dee2e6;
-                    text-align: center;
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Catálogo de Productos - Impulsa360</title>
+            <style>
+                body {
+                    font-family: 'Arial', sans-serif;
+                    margin: 0;
                     padding: 20px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    min-height: 100vh;
                 }
-        .producto-info {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            margin-bottom: 20px;
-        }
-        .producto-nombre {
-            font-weight: bold;
-            font-size: 1.4em;
-            color: #2c3e50;
-            margin-bottom: 15px;
-            line-height: 1.3;
-        }
-        .producto-precio {
-            font-size: 1.3em;
-            color: #e74c3c;
-            font-weight: bold;
-            margin: 8px 0;
-        }
-        .producto-stock {
-            font-size: 1.1em;
-            color: #27ae60;
-            margin: 5px 0;
-        }
-        .producto-categoria {
-            font-size: 1.1em;
-            color: #9b59b6;
-            margin: 5px 0;
-        }
-        .producto-descripcion {
-            font-size: 1em;
-            color: #7f8c8d;
-            margin: 10px 0;
-            line-height: 1.4;
-            flex-grow: 1;
-        }
-        /* ✅ CONTENEDOR DE BOTONES FIJO EN LA PARTE INFERIOR */
-        .botones-container {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            margin-top: auto;
-            width: 100%;
-        }
-        .boton-whatsapp {
-            background: linear-gradient(135deg, #25D366, #128C7E);
-            color: white;
-            padding: 12px 20px;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: bold;
-            font-size: 1em;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3);
-            border: none;
-            cursor: pointer;
-            width: 100%;
-            text-align: center;
-            display: block;
-            box-sizing: border-box;
-        }
-        .boton-whatsapp:hover {
-            background: linear-gradient(135deg, #128C7E, #25D366);
-            transform: translateY(-2px);
-            box-shadow: 0 6px 18px rgba(37, 211, 102, 0.4);
-            text-decoration: none;
-            color: white;
-        }
-        .footer {
-            text-align: center;
-            margin-top: 40px;
-            padding: 30px;
-            background: #f8f9fa;
-            color: #6c757d;
-            border-top: 1px solid #dee2e6;
-        }
-        /* ✅ RESPONSIVE */
-        @media (max-width: 768px) {
-            .productos-grid {
-                grid-template-columns: 1fr;
-                padding: 15px;
-                gap: 25px;
-            }
-            .header h1 {
-                font-size: 2em;
-            }
-            .producto-imagen-container {
-                height: 200px;
-            }
-            .producto-imagen-placeholder {
-                font-size: 1em;
-            }
-            .botones-container {
-                flex-direction: column;
-                gap: 10px;
-                margin-top: 15px;
-            }
-            .boton-whatsapp {
-                width: 100%;
-                padding: 16px 10px;
-                font-size: 16px;
-                min-height: 50px;
-            }
-            .producto-card {
-                padding: 20px;
-                margin: 0 5px;
-                min-height: 500px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🛍️ Catálogo de Productos</h1>
-            <p>Impulsa360 - Emprendimientos Sociales</p>
-""");
+                .container {
+                    max-width: 1400px;
+                    margin: 0 auto;
+                    background: white;
+                    border-radius: 15px;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+                    overflow: hidden;
+                }
+                .header {
+                    text-align: center;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 40px 20px;
+                    margin-bottom: 30px;
+                }
+                .header h1 {
+                    margin: 0;
+                    font-size: 2.5em;
+                    font-weight: bold;
+                }
+                .header p {
+                    margin: 10px 0 0 0;
+                    font-size: 1.2em;
+                    opacity: 0.9;
+                }
+                .productos-grid {
+                    display: grid;
+                    grid-template-columns: repeat(2, 1fr);
+                    gap: 30px;
+                    padding: 30px;
+                    margin: 0 auto;
+                }
+                .producto-card {
+                    background: white;
+                    border-radius: 15px;
+                    padding: 25px;
+                    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+                    transition: all 0.3s ease;
+                    border: 1px solid #e9ecef;
+                    position: relative;
+                    overflow: hidden;
+                    text-align: center;
+                    display: flex;
+                    flex-direction: column;
+                    height: fit-content;
+                    min-height: 550px; 
+                }
+                .producto-card:hover {
+                    transform: translateY(-5px);
+                    box-shadow: 0 12px 30px rgba(0,0,0,0.2);
+                }
+                 .producto-imagen-container {
+                            text-align: center;
+                            margin: 0 auto 20px auto;
+                            width: 100%;
+                            height: 350px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            overflow: hidden;
+                            border-radius: 12px;
+                            background: #f8f9fa; 
+                            border: 2px solid #e9ecef;
+                        }
+                        .producto-imagen {
+                            max-width: 100%;
+                            max-height: 100%;
+                            width: auto;
+                            height: auto;
+                            object-fit: contain; 
+                            border-radius: 10px;
+                            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                        }
+                        .producto-imagen-placeholder {
+                            width: 100%;
+                            height: 100%;
+                            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+                            border-radius: 12px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            color: white;
+                            font-weight: bold;
+                            font-size: 1.2em;
+                            border: 3px dashed #dee2e6;
+                            text-align: center;
+                            padding: 20px;
+                        }
+                .producto-info {
+                    flex-grow: 1;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
+                    margin-bottom: 20px;
+                }
+                .producto-nombre {
+                    font-weight: bold;
+                    font-size: 1.4em;
+                    color: #2c3e50;
+                    margin-bottom: 15px;
+                    line-height: 1.3;
+                }
+                .producto-precio {
+                    font-size: 1.3em;
+                    color: #e74c3c;
+                    font-weight: bold;
+                    margin: 8px 0;
+                }
+                .producto-stock {
+                    font-size: 1.1em;
+                    color: #27ae60;
+                    margin: 5px 0;
+                }
+                .producto-categoria {
+                    font-size: 1.1em;
+                    color: #9b59b6;
+                    margin: 5px 0;
+                }
+                .producto-descripcion {
+                    font-size: 1em;
+                    color: #7f8c8d;
+                    margin: 10px 0;
+                    line-height: 1.4;
+                    flex-grow: 1;
+                }
+                .botones-container {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                    margin-top: auto;
+                    width: 100%;
+                }
+                .boton-whatsapp {
+                    background: linear-gradient(135deg, #25D366, #128C7E);
+                    color: white;
+                    padding: 12px 20px;
+                    border-radius: 8px;
+                    text-decoration: none;
+                    font-weight: bold;
+                    font-size: 1em;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3);
+                    border: none;
+                    cursor: pointer;
+                    width: 100%;
+                    text-align: center;
+                    display: block;
+                    box-sizing: border-box;
+                }
+                .boton-whatsapp:hover {
+                    background: linear-gradient(135deg, #128C7E, #25D366);
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 18px rgba(37, 211, 102, 0.4);
+                    text-decoration: none;
+                    color: white;
+                }
+                .footer {
+                    text-align: center;
+                    margin-top: 40px;
+                    padding: 30px;
+                    background: #f8f9fa;
+                    color: #6c757d;
+                    border-top: 1px solid #dee2e6;
+                }
+                @media (max-width: 768px) {
+                    .productos-grid {
+                        grid-template-columns: 1fr;
+                        padding: 15px;
+                        gap: 25px;
+                    }
+                    .header h1 {
+                        font-size: 2em;
+                    }
+                    .producto-imagen-container {
+                        height: 200px;
+                    }
+                    .producto-imagen-placeholder {
+                        font-size: 1em;
+                    }
+                    .botones-container {
+                        flex-direction: column;
+                        gap: 10px;
+                        margin-top: 15px;
+                    }
+                    .boton-whatsapp {
+                        width: 100%;
+                        padding: 16px 10px;
+                        font-size: 16px;
+                        min-height: 50px;
+                    }
+                    .producto-card {
+                        padding: 20px;
+                        margin: 0 5px;
+                        min-height: 500px;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>🛍️ Catálogo de Productos</h1>
+                    <p>Impulsa360 - Emprendimientos Sociales</p>
+        """);
 
-            // Información del usuario
             if (usuarioLogueado != null) {
                 html.append("<p><strong>Emprendedor:</strong> ").append(escapeHTML(usuarioLogueado.getNombreCompleto())).append("</p>");
             }
@@ -1251,7 +1069,6 @@ public class ControladorDashboard implements Initializable {
                 }
             }
 
-            // Pie de página
             html.append("""
         </div>
         <div class="footer">
@@ -1268,7 +1085,6 @@ public class ControladorDashboard implements Initializable {
 </html>
 """);
 
-            // Guardar archivo
             java.nio.file.Files.write(file.toPath(), html.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
         } catch (Exception e) {
@@ -1280,19 +1096,16 @@ public class ControladorDashboard implements Initializable {
         VBox tarjeta = new VBox(10);
         tarjeta.setStyle("-fx-padding: 15; -fx-background-color: white; -fx-border-radius: 10; -fx-border-color: #ddd; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 5, 0, 0, 2);");
 
-        // ✅ TAMAÑO FIJO Y CONSISTENTE
         tarjeta.setPrefWidth(330);
         tarjeta.setMaxWidth(330);
         tarjeta.setMinWidth(330);
 
-        // ✅ IMAGEN CON TAMAÑO FIJO
         ImageView imageView = new ImageView();
         imageView.setFitWidth(270);
         imageView.setFitHeight(200);
         imageView.setPreserveRatio(true);
         imageView.setStyle("-fx-border-radius: 8; -fx-border-color: #eee;");
 
-        // Cargar imagen (tu código existente)
         if (producto.getImagenPath() != null && !producto.getImagenPath().isEmpty()) {
             try {
                 File file = new File(producto.getImagenPath());
@@ -1309,7 +1122,6 @@ public class ControladorDashboard implements Initializable {
             imageView.setImage(crearImagenPorDefecto());
         }
 
-        // ✅ BOTONES CON ESTILOS MEJORADOS
         HBox botonesIndividuales = new HBox(8);
         botonesIndividuales.setAlignment(javafx.geometry.Pos.CENTER);
 
@@ -1326,7 +1138,6 @@ public class ControladorDashboard implements Initializable {
                 + "-fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.3), 4, 0, 0, 2);"
         );
 
-        // Efecto hover para el botón Cambiar
         btnCambiarImagen.setOnMouseEntered(e -> {
             btnCambiarImagen.setStyle(
                     "-fx-font-size: 12px; "
@@ -1369,7 +1180,6 @@ public class ControladorDashboard implements Initializable {
                 + "-fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.3), 4, 0, 0, 2);"
         );
 
-        // Efecto hover para el botón Copiar
         btnCopiarIndividual.setOnMouseEntered(e -> {
             btnCopiarIndividual.setStyle(
                     "-fx-font-size: 12px; "
@@ -1399,7 +1209,6 @@ public class ControladorDashboard implements Initializable {
             );
         });
 
-        // Efecto al hacer click
         btnCambiarImagen.setOnMousePressed(e -> {
             btnCambiarImagen.setStyle(btnCambiarImagen.getStyle() + " -fx-translate-y: 1px;");
         });
@@ -1408,13 +1217,11 @@ public class ControladorDashboard implements Initializable {
             btnCopiarIndividual.setStyle(btnCopiarIndividual.getStyle() + " -fx-translate-y: 1px;");
         });
 
-        // Acciones de los botones
         btnCambiarImagen.setOnAction(e -> seleccionarImagen(producto));
         btnCopiarIndividual.setOnAction(e -> copiarProductoIndividual(producto, imageView));
 
         botonesIndividuales.getChildren().addAll(btnCambiarImagen, btnCopiarIndividual);
 
-        // ✅ INFORMACIÓN DEL PRODUCTO
         Label lblNombre = new Label(producto.getNombre());
         lblNombre.setStyle("-fx-font-weight: bold; -fx-font-size: 16; -fx-text-fill: #2c3e50; -fx-wrap-text: true;");
         lblNombre.setMaxWidth(270);
@@ -1425,14 +1232,12 @@ public class ControladorDashboard implements Initializable {
         Label lblStock = new Label("📦 Stock: " + producto.getCantidadDisponible() + " unidades");
         lblStock.setStyle("-fx-font-size: 14; -fx-text-fill: #3498db;");
 
-        // Categoría (si existe)
         if (producto.getCategoria() != null && !producto.getCategoria().isEmpty()) {
-            Label lblCategoria = new Label("🏷️ " + producto.getCategoria());
+            Label lblCategoria = new Label(producto.getCategoria());
             lblCategoria.setStyle("-fx-font-size: 12; -fx-text-fill: #7f8c8d; -fx-wrap-text: true;");
             tarjeta.getChildren().add(lblCategoria);
         }
 
-        // Descripción (si existe)
         if (producto.getDescripcion() != null && !producto.getDescripcion().isEmpty()) {
             TextArea txtDescripcion = new TextArea(producto.getDescripcion());
             txtDescripcion.setEditable(false);
@@ -1449,19 +1254,15 @@ public class ControladorDashboard implements Initializable {
 
     private void copiarProductoIndividual(Producto producto, ImageView imageView) {
         try {
-            // Crear contenido mixto (imagen + texto)
             ClipboardContent content = new ClipboardContent();
 
-            // Copiar imagen si existe
             if (imageView.getImage() != null) {
                 content.putImage(imageView.getImage());
             }
 
-            // Copiar texto descriptivo
             String textoProducto = crearTextoProducto(producto);
             content.putString(textoProducto);
 
-            // Copiar al portapapeles
             Clipboard.getSystemClipboard().setContent(content);
 
             mostrarAlerta("Éxito", "✅ Producto copiado al portapapeles:\n" + producto.getNombre()
@@ -1491,18 +1292,14 @@ public class ControladorDashboard implements Initializable {
     }
 
     private Image crearImagenPorDefecto() {
-        // Crear una imagen por defecto simple
         try {
-            // Intenta cargar una imagen por defecto desde recursos
             InputStream is = getClass().getResourceAsStream("/images/placeholder.png");
             if (is != null) {
                 return new Image(is);
             }
         } catch (Exception e) {
-            // Si no hay imagen, continuamos
         }
 
-        // Si no hay imagen por defecto, retornamos null y manejamos en el ImageView
         return null;
     }
 
@@ -1517,17 +1314,13 @@ public class ControladorDashboard implements Initializable {
         File file = fileChooser.showOpenDialog(null);
         if (file != null) {
             try {
-                // Guardar la ruta en la base de datos
                 producto.setImagenPath(file.getAbsolutePath());
 
-                // Actualizar en la base de datos - necesitas este método en ControladorBD
                 boolean exito = ControladorBD.actualizarProductoConImagen(producto);
 
                 if (exito) {
-                    // Regenerar el catálogo visual
                     generarCatalogoVisual();
 
-                    // Mostrar mensaje de éxito
                     mostrarAlerta("Éxito", "Imagen actualizada correctamente para: " + producto.getNombre());
                 } else {
                     mostrarAlerta("Error", "No se pudo guardar la imagen en la base de datos");
@@ -1541,16 +1334,13 @@ public class ControladorDashboard implements Initializable {
 
     private void crearImagenDelCatalogo(File file) {
         try {
-            // Crear un contenedor temporal para capturar
             VBox contenedorTemporal = new VBox(20);
             contenedorTemporal.setStyle("-fx-padding: 20; -fx-background-color: white;");
 
-            // Título
             Label titulo = new Label("CATÁLOGO DE PRODUCTOS - IMPULSA360");
             titulo.setStyle("-fx-font-weight: bold; -fx-font-size: 24; -fx-text-fill: #2c3e50;");
             contenedorTemporal.getChildren().add(titulo);
 
-            // Copiar todas las tarjetas del catálogo visual
             for (javafx.scene.Node node : contenedorCatalogoVisual.getChildren()) {
                 if (node instanceof VBox) {
                     VBox tarjetaOriginal = (VBox) node;
@@ -1559,14 +1349,11 @@ public class ControladorDashboard implements Initializable {
                 }
             }
 
-            // Aplicar los estilos CSS
             contenedorTemporal.applyCss();
             contenedorTemporal.layout();
 
-            // Crear snapshot (captura de pantalla)
             javafx.scene.image.WritableImage imagen = contenedorTemporal.snapshot(new javafx.scene.SnapshotParameters(), null);
 
-            // Guardar como PNG
             javax.imageio.ImageIO.write(
                     javafx.embed.swing.SwingFXUtils.fromFXImage(imagen, null),
                     "png",
@@ -1583,7 +1370,6 @@ public class ControladorDashboard implements Initializable {
         tarjetaCopia.setStyle("-fx-padding: 15; -fx-background-color: white; -fx-border-radius: 10; -fx-border-color: #ddd;");
         tarjetaCopia.setPrefWidth(280);
 
-        // Copiar cada elemento de la tarjeta original
         for (javafx.scene.Node node : tarjetaOriginal.getChildren()) {
             if (node instanceof ImageView) {
                 ImageView imagenOriginal = (ImageView) node;
@@ -1606,7 +1392,6 @@ public class ControladorDashboard implements Initializable {
                 textAreaCopia.setStyle("-fx-font-size: 12; -fx-background-color: #f8f9fa;");
                 tarjetaCopia.getChildren().add(textAreaCopia);
             }
-            // No copiamos botones para la exportación
         }
 
         return tarjetaCopia;
@@ -1615,43 +1400,35 @@ public class ControladorDashboard implements Initializable {
     @FXML
     private void mostrarCatalogoWhatsApp() {
         try {
-            // Si el área de catálogo está vacía, generamos el catálogo primero
             if (areaCatalogo.getText() == null || areaCatalogo.getText().trim().isEmpty()) {
-                generarCatalogo(); // Llama a tu método existente para generar el catálogo
+                generarCatalogo();
             }
 
             String catalogo = areaCatalogo.getText();
 
-            // Crear un diálogo personalizado para mostrar el catálogo
             Alert alert = new Alert(Alert.AlertType.INFORMATION);
             alert.setTitle("Catálogo para WhatsApp");
             alert.setHeaderText("📱 Copia este texto y pégalo en WhatsApp");
 
-            // Crear un TextArea para mostrar el catálogo
             TextArea textArea = new TextArea(catalogo);
             textArea.setEditable(false);
             textArea.setWrapText(true);
             textArea.setPrefSize(500, 400);
             textArea.setStyle("-fx-font-family: 'Arial'; -fx-font-size: 12;");
 
-            // Configurar el diálogo
             alert.getDialogPane().setContent(textArea);
             alert.getDialogPane().setPrefSize(550, 450);
 
-            // Agregar botón adicional para copiar
             ButtonType copiarButton = new ButtonType("📋 Copiar");
             ButtonType cerrarButton = new ButtonType("Cerrar", ButtonBar.ButtonData.CANCEL_CLOSE);
             alert.getButtonTypes().setAll(copiarButton, cerrarButton);
 
-            // Mostrar el diálogo y manejar la respuesta
             java.util.Optional<ButtonType> result = alert.showAndWait();
             if (result.isPresent() && result.get() == copiarButton) {
-                // Copiar al portapapeles
                 ClipboardContent content = new ClipboardContent();
                 content.putString(catalogo);
                 Clipboard.getSystemClipboard().setContent(content);
 
-                // Mostrar confirmación
                 Alert confirmacion = new Alert(Alert.AlertType.INFORMATION);
                 confirmacion.setTitle("Éxito");
                 confirmacion.setHeaderText(null);
@@ -1671,7 +1448,6 @@ public class ControladorDashboard implements Initializable {
 
     @FXML
     private void copiarCatalogoTextoSolo() {
-        // Tu método existente para copiar solo texto
         String catalogo = areaCatalogo.getText();
         if (catalogo != null && !catalogo.trim().isEmpty()) {
             try {
@@ -1695,13 +1471,11 @@ public class ControladorDashboard implements Initializable {
             for (javafx.scene.Node node : tarjeta.getChildren()) {
                 if (node instanceof Label) {
                     Label label = (Label) node;
-                    // Evitar incluir etiquetas de precio/stock que ya están en el texto individual
                     if (!label.getText().contains("💰") && !label.getText().contains("📦") && !label.getText().contains("🏷️")) {
                         texto.append(label.getText()).append(" ");
                     }
                 }
             }
-
             return texto.toString().trim();
         } catch (Exception e) {
             return null;
@@ -1743,7 +1517,6 @@ public class ControladorDashboard implements Initializable {
 
                     if (imagenFX != null) {
                         try {
-                            // ✅ CONVERSIÓN IDÉNTICA AL CÓDIGO DE CURSOS
                             java.awt.image.BufferedImage bufferedImage = SwingFXUtils.fromFXImage(imagenFX, null);
                             java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
                             javax.imageio.ImageIO.write(bufferedImage, "png", baos);
@@ -1791,17 +1564,27 @@ public class ControladorDashboard implements Initializable {
             }
             productoHTML.append("<div class=\"botones-container\">\n");
 
-            String numeroWhatsApp = "+573127125150";
-            String mensajeWhatsApp = "Hola! Estoy interesado en el producto: " + escapeHTML(nombre) + " - Precio: " + escapeHTML(precio);
-            String enlaceWhatsApp = "https://wa.me/" + numeroWhatsApp.replace("+", "") + "?text="
-                    + java.net.URLEncoder.encode(mensajeWhatsApp, "UTF-8");
+            String telefono = usuarioLogueado.getTelefono();
 
-            productoHTML.append("<a href=\"").append(enlaceWhatsApp)
-                    .append("\" target=\"_blank\" class=\"boton-whatsapp\" title=\"Consultar por WhatsApp sobre: ")
-                    .append(escapeHTML(nombre))
-                    .append("\">")
-                    .append("💬 Consultar")
-                    .append("</a>\n");
+            if (telefono == null || telefono.trim().isEmpty()) {
+                productoHTML.append("<div class=\"botones-container\">\n");
+                productoHTML.append("<button class=\"boton-whatsapp\" disabled style=\"background: #6c757d; cursor: not-allowed;\">")
+                        .append("⚠️ Configura tu WhatsApp")
+                        .append("</button>\n");
+                productoHTML.append("</div>\n");
+            } else {
+                String numeroWhatsApp = telefono.replaceAll("[^0-9]", "");
+                String mensajeWhatsApp = "Hola! Estoy interesado en el producto: " + escapeHTML(nombre) + " - Precio: " + escapeHTML(precio);
+                String enlaceWhatsApp = "https://wa.me/" + numeroWhatsApp + "?text="
+                        + java.net.URLEncoder.encode(mensajeWhatsApp, "UTF-8");
+
+                productoHTML.append("<a href=\"").append(enlaceWhatsApp)
+                        .append("\" target=\"_blank\" class=\"boton-whatsapp\" title=\"Consultar por WhatsApp sobre: ")
+                        .append(escapeHTML(nombre))
+                        .append("\">")
+                        .append("💬 Consultar")
+                        .append("</a>\n");
+            }
 
             productoHTML.append("</div>\n");
             productoHTML.append("</div>\n");
@@ -1816,26 +1599,20 @@ public class ControladorDashboard implements Initializable {
 
     private String crearBotonWhatsApp(String nombreProducto, String precioProducto, int numeroProducto) {
         try {
-            String numeroEmprendedor = obtenerNumeroWhatsAppEmprendedor();
-
-            if (numeroEmprendedor == null || numeroEmprendedor.trim().isEmpty()) {
+            String telefono = usuarioLogueado.getTelefono();
+            if (telefono == null || telefono.trim().isEmpty()) {
                 return "<div style=\"text-align:center; margin-top:10px; color:#dc3545; font-size:12px;\">"
                         + "⚠️ Número de WhatsApp no configurado</div>";
             }
+            String numeroLimpio = telefono.replaceAll("[^0-9]", "");
 
-            // Limpiar el num
-            String numeroLimpio = numeroEmprendedor.replaceAll("[^0-9]", "");
-
-            // Crear mensaje predefinido
             String mensaje = "¡Hola! Estoy interesado en comprar el producto: " + nombreProducto
                     + " (Producto #" + numeroProducto + "). "
                     + "Precio: " + precioProducto + ". "
                     + "¿Podrías ayudarme con mi compra?";
 
-            // Codificar el mensaje para URL
             String mensajeCodificado = java.net.URLEncoder.encode(mensaje, "UTF-8");
 
-            // Crear el enlace de WhatsApp
             StringBuilder boton = new StringBuilder();
             boton.append("<div style=\"text-align:center; margin-top:15px;\">");
             boton.append("<a href=\"https://wa.me/").append(numeroLimpio)
@@ -1851,17 +1628,6 @@ public class ControladorDashboard implements Initializable {
             System.err.println("❌ Error creando botón WhatsApp: " + e.getMessage());
             return "<div style=\"text-align:center; margin-top:10px; color:#dc3545;\">Error en botón WhatsApp</div>";
         }
-    }
-
-    private String obtenerNumeroWhatsAppEmprendedor() {
-        // Op1 Usar el número del usuario logueado 
-        // Tengo q añadir op pal empresario meta su num
-        if (usuarioLogueado != null && usuarioLogueado.getTelefono() != null) {
-            return usuarioLogueado.getTelefono();
-        }
-
-        return "+573118234985"; //Tego q cambiar esto en el futuro 
-
     }
 
     private String escapeHTML(String text) {
@@ -1886,7 +1652,6 @@ public class ControladorDashboard implements Initializable {
             File carpetaImagenes = new File(carpetaWeb, "imagenes_productos");
             carpetaImagenes.mkdirs();
 
-            // ✅ VERIFICAR QUE SE EJECUTE
             System.out.println("=== INICIANDO EXPORTACIÓN ===");
             int totalImagenes = copiarImagenesDeProductos(carpetaImagenes);
             System.out.println("Imágenes procesadas: " + totalImagenes);
@@ -1894,7 +1659,6 @@ public class ControladorDashboard implements Initializable {
             File htmlFile = new File(carpetaWeb, "index.html");
             crearHTMLDelCatalogo(htmlFile);
 
-            // ✅ MOSTRAR RESULTADO REAL
             mostrarAlerta("Éxito", "📁 Carpeta 'catalogo_productos_web' generada con:\n"
                     + "• index.html\n"
                     + "• imagenes/ (con " + totalImagenes + " imágenes)\n\n"
@@ -1913,7 +1677,6 @@ public class ControladorDashboard implements Initializable {
         int imagenesCopiadas = 0;
 
         try {
-            // ✅ VERIFICAR QUE EL MÉTODO SE EJECUTA
             System.out.println("=== COPIANDO IMÁGENES ===");
             System.out.println("Carpeta destino: " + carpetaImagenes.getAbsolutePath());
 
@@ -1930,10 +1693,8 @@ public class ControladorDashboard implements Initializable {
 
                             if (imageView != null && imageView.getImage() != null) {
                                 try {
-                                    // ✅ CONVERTIR A JPG PARA CONSISTENCIA
                                     java.awt.image.BufferedImage bufferedImage = SwingFXUtils.fromFXImage(imageView.getImage(), null);
 
-                                    // ✅ CREAR NUEVA IMAGEN CON FONDO BLANCO (evita fondos negros)
                                     java.awt.image.BufferedImage nuevaImagen = new java.awt.image.BufferedImage(
                                             bufferedImage.getWidth(),
                                             bufferedImage.getHeight(),
@@ -1946,7 +1707,6 @@ public class ControladorDashboard implements Initializable {
                                     g2d.drawImage(bufferedImage, 0, 0, null);
                                     g2d.dispose();
 
-                                    // ✅ GUARDAR COMO JPG
                                     File imagenDestino = new File(carpetaImagenes, "producto" + numero + ".jpg");
                                     javax.imageio.ImageIO.write(nuevaImagen, "jpg", imagenDestino);
 
@@ -1955,7 +1715,6 @@ public class ControladorDashboard implements Initializable {
 
                                 } catch (Exception e) {
                                     System.err.println("❌ Error copiando imagen producto " + numero + ": " + e.getMessage());
-                                    // Intentar método simple como fallback
                                     try {
                                         java.awt.image.BufferedImage bufferedImage = SwingFXUtils.fromFXImage(imageView.getImage(), null);
                                         File imagenDestino = new File(carpetaImagenes, "producto" + numero + ".jpg");
@@ -1989,7 +1748,6 @@ public class ControladorDashboard implements Initializable {
             StringBuilder productoHTML = new StringBuilder();
             productoHTML.append("<div class=\"producto-card\">\n");
 
-            // ✅ 1. EXTRAER LA INFORMACIÓN DEL PRODUCTO
             String nombreProducto = "Producto";
             String categoria = "Categoría";
             String precio = "$0";
@@ -1997,7 +1755,6 @@ public class ControladorDashboard implements Initializable {
             String descripcion = "Descripción";
             String rutaImagen = null;
 
-            // Extraer datos de los labels dentro del VBox
             for (javafx.scene.Node node : tarjetaProducto.getChildren()) {
                 if (node instanceof Label) {
                     Label label = (Label) node;
@@ -2018,7 +1775,6 @@ public class ControladorDashboard implements Initializable {
                 }
             }
 
-            // ✅ 2. BUSCAR EL ImageView PARA LA IMAGEN REAL
             ImageView imageView = null;
             for (javafx.scene.Node node : tarjetaProducto.getChildren()) {
                 if (node instanceof ImageView) {
@@ -2036,9 +1792,7 @@ public class ControladorDashboard implements Initializable {
                 }
             }
 
-            // ✅ 3. GENERAR HTML CON IMAGEN REAL O PLACEHOLDER
             if (imageView != null && imageView.getImage() != null) {
-                // ✅ IMAGEN REAL - usar ruta relativa para GitHub Pages
                 productoHTML.append("<div class=\"producto-imagen-container\">\n");
                 productoHTML.append("<img src=\"imagenes_productos/producto")
                         .append(numero)
@@ -2047,7 +1801,6 @@ public class ControladorDashboard implements Initializable {
                         .append("\">\n");
                 productoHTML.append("</div>\n");
             } else {
-                // ❌ PLACEHOLDER (solo si no hay imagen)
                 productoHTML.append("<div class=\"producto-imagen-container\">\n");
                 productoHTML.append("<div class=\"producto-imagen-placeholder\">🛒 Producto<br>")
                         .append(escapeHTML(nombreProducto))
@@ -2055,7 +1808,6 @@ public class ControladorDashboard implements Initializable {
                 productoHTML.append("</div>\n");
             }
 
-            // ✅ 4. INFORMACIÓN DEL PRODUCTO
             productoHTML.append("<div class=\"producto-info\">\n");
             productoHTML.append("<div class=\"producto-nombre\">").append(numero).append(". ").append(escapeHTML(nombreProducto)).append("</div>\n");
             productoHTML.append("<div class=\"producto-categoria\">🏷️ ").append(escapeHTML(categoria)).append("</div>\n");
@@ -2064,16 +1816,26 @@ public class ControladorDashboard implements Initializable {
             productoHTML.append("<div class=\"producto-descripcion\">📝 ").append(escapeHTML(descripcion)).append("</div>\n");
             productoHTML.append("</div>\n");
 
-            // ✅ 5. BOTÓN DE WHATSAPP
-            String mensajeWhatsApp = "Hola! Estoy interesado en el producto: " + nombreProducto + " - Precio: " + precio;
-            String enlaceWhatsApp = "https://wa.me/573127125150?text=" + java.net.URLEncoder.encode(mensajeWhatsApp, "UTF-8");
+            String telefono = usuarioLogueado.getTelefono();
 
-            productoHTML.append("<div class=\"botones-container\">\n");
-            productoHTML.append("<a href=\"").append(enlaceWhatsApp)
-                    .append("\" target=\"_blank\" class=\"boton-whatsapp\" title=\"Consultar por WhatsApp sobre: ")
-                    .append(escapeHTML(nombreProducto))
-                    .append("\">💬 Consultar por WhatsApp</a>\n");
-            productoHTML.append("</div>\n");
+            if (telefono == null || telefono.trim().isEmpty()) {
+                productoHTML.append("<div class=\"botones-container\">\n");
+                productoHTML.append("<button class=\"boton-whatsapp\" disabled style=\"background: #6c757d; cursor: not-allowed;\">")
+                        .append("⚠️ Configura tu WhatsApp")
+                        .append("</button>\n");
+                productoHTML.append("</div>\n");
+            } else {
+                String numeroWhatsApp = telefono.replaceAll("[^0-9]", "");
+                String mensajeWhatsApp = "Hola! Estoy interesado en el producto: " + nombreProducto + " - Precio: " + precio;
+                String enlaceWhatsApp = "https://wa.me/" + numeroWhatsApp + "?text=" + java.net.URLEncoder.encode(mensajeWhatsApp, "UTF-8");
+
+                productoHTML.append("<div class=\"botones-container\">\n");
+                productoHTML.append("<a href=\"").append(enlaceWhatsApp)
+                        .append("\" target=\"_blank\" class=\"boton-whatsapp\" title=\"Consultar por WhatsApp sobre: ")
+                        .append(escapeHTML(nombreProducto))
+                        .append("\">💬 Consultar por WhatsApp</a>\n");
+                productoHTML.append("</div>\n");
+            }
 
             productoHTML.append("</div>\n");
             return productoHTML.toString();
@@ -2084,9 +1846,6 @@ public class ControladorDashboard implements Initializable {
         }
     }
 
-    /**
-     * OBTIENE EL ImageView DE UNA TARJETA DE PRODUCTO
-     */
     private ImageView obtenerImageViewDeTarjeta(VBox tarjeta) {
         try {
             System.out.println("=== BUSCANDO IMAGEVIEW ===");
@@ -2112,22 +1871,6 @@ public class ControladorDashboard implements Initializable {
         }
     }
 
-    /* ------------------------------------------------------//--------------------------------------------------
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    ------------------------------------------------------//--------------------------------------------------
-     */
     @FXML
     private void instalarGit() {
         gestorGit.instalarGit();
@@ -2139,13 +1882,11 @@ public class ControladorDashboard implements Initializable {
             String rutaCatalogo = System.getProperty("user.home") + "/Desktop/catalogo_productos_web";
             File carpetaCatalogo = new File(rutaCatalogo);
 
-            // ✅ CREAR CARPETA AUTOMÁTICAMENTE SI NO EXISTE
             if (!carpetaCatalogo.exists()) {
                 boolean creada = carpetaCatalogo.mkdirs();
                 if (creada) {
                     System.out.println("✅ Carpeta creada automáticamente: " + carpetaCatalogo.getAbsolutePath());
 
-                    // También crear subcarpeta de imágenes
                     File carpetaImagenes = new File(carpetaCatalogo, "imagenes_productos");
                     carpetaImagenes.mkdirs();
 
@@ -2158,13 +1899,10 @@ public class ControladorDashboard implements Initializable {
                 }
             }
 
-            // ✅ VERIFICACIÓN SIMPLE COMO EN PRODUCTOS
             if (contenedorCatalogoVisual.getChildren().isEmpty()) {
                 mostrarAlerta("Error", "Primero genera el catálogo visual desde la pestaña 'Catálogo Visual'");
                 return;
             }
-
-            // ✅ GENERAR EL HTML Y LAS IMÁGENES
             File carpetaImagenes = new File(carpetaCatalogo, "imagenes_productos");
             carpetaImagenes.mkdirs();
 
@@ -2172,7 +1910,6 @@ public class ControladorDashboard implements Initializable {
             File htmlFile = new File(carpetaCatalogo, "index.html");
             crearHTMLDelCatalogo(htmlFile);
 
-            // ✅ PROCEDER CON EL DESPLIEGUE
             gestorGit.desplegarAGitHubPagesAsync(
                     getClass(),
                     carpetaCatalogo,

@@ -24,11 +24,12 @@ public class Usuario {
     public Usuario() {
     }
 
-    public Usuario(String nombreCompleto, String correo, String contrasena, String tipoUsuario) {
+    public Usuario(String nombreCompleto, String correo, String contrasena, String tipoUsuario, String telefono) {
         this.nombreCompleto = nombreCompleto;
         this.correo = correo;
         this.contrasena = contrasena;
         this.tipoUsuario = tipoUsuario;
+        this.telefono = telefono;
     }
 
     // Getters y Setters 

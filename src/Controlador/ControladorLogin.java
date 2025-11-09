@@ -6,6 +6,7 @@ package Controlador;
 
 import Modelo.Usuario;
 import java.io.IOException;
+import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -66,7 +67,6 @@ public class ControladorLogin {
      * Inicializa la visibilidad de los campos de contraseña y configura
      * las acciones de los botones y enlaces de la interfaz.
      */
-    
     @FXML
     public void initialize() {
         //Inicializar BD
@@ -140,7 +140,6 @@ public class ControladorLogin {
 
             try {
                 if ("Fundación".equals(usuario.getTipoUsuario())) {
-                    //Cargar dashboard para fundaciones
                     FXMLLoader loader = new FXMLLoader(getClass().getResource("/Vista/DashboardFundacion.fxml"));
                     Parent root = loader.load();
 
@@ -151,11 +150,11 @@ public class ControladorLogin {
                     Scene scene = new Scene(root);
                     stage.setScene(scene);
                     stage.setTitle("Impulsa360 - Fundación: " + usuario.getNombreCompleto());
+                    stage.setResizable(true);
+                    stage.setMaximized(true);
                     stage.centerOnScreen();
                     stage.show();
-
                 } else {
-                    // Cargar dashboard para EMPRENDEDORES (Productos)
                     FXMLLoader loader = new FXMLLoader(getClass().getResource("/Vista/Dashboard.fxml"));
                     Parent root = loader.load();
 
@@ -163,10 +162,17 @@ public class ControladorLogin {
                     controladorDashboard.setUsuarioLogueado(usuario);
 
                     Stage stage = (Stage) btnLogin.getScene().getWindow();
+                    stage.setMaximized(false);
+
                     Scene scene = new Scene(root);
                     stage.setScene(scene);
-                    stage.setTitle("Impulsa360 - Emprendedor: " + usuario.getNombreCompleto());
-                    stage.centerOnScreen();
+                    stage.setTitle("Impulsa 360");
+                    stage.setResizable(true);
+
+                    Platform.runLater(() -> {
+                        stage.setMaximized(true);
+                    });
+
                     stage.show();
                 }
 
@@ -177,7 +183,7 @@ public class ControladorLogin {
         } else {
             mostrarAlerta("Usuario no existe", "Cuenta no encontrada", Alert.AlertType.INFORMATION);
         }
-            
+
     }
     //Codigo reutilizable para mostrar alertas
 
@@ -198,17 +204,26 @@ public class ControladorLogin {
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/Vista/Registro.fxml"));
             Parent root = loader.load();
 
-            // Obtener la ventana actual
             Stage stage = (Stage) btnLogin.getScene().getWindow();
+    
+            stage.setMinWidth(380);  
+            stage.setMinHeight(721); 
+            stage.setWidth(380);      
+            stage.setHeight(721);     
 
             // Cambiar la escena por la de registro
             Scene scene = new Scene(root);
             stage.setScene(scene);
-            stage.setTitle("Registro de usuario");
+            stage.setTitle("Registro");
             stage.centerOnScreen();
-            stage.show();
+
+            Platform.runLater(() -> {
+                stage.sizeToScene();
+            });
+
         } catch (IOException e) {
-            e.printStackTrace(); 
+            e.printStackTrace();
+            mostrarAlerta("Error", "No se pudo cargar el formulario de registro", Alert.AlertType.ERROR);
         }
     }
 

@@ -43,9 +43,6 @@ public class ControladorGit {
         this.generadorCatalogoFunction = generadorCatalogoFunction;
     }
 
-    /**
-     * VERIFICACIÓN DE GIT
-     */
     public boolean estaGitInstalado() {
         try {
             String[] rutasGit = {
@@ -69,8 +66,7 @@ public class ControladorGit {
 
     private boolean verificarGitEnRutaEspecifica(String rutaGit) {
         try {
-            //ProcessBuilder pb = new ProcessBuilder(rutaGit, "--version");
-            ProcessBuilder pb = new ProcessBuilder(rutaGit);
+            ProcessBuilder pb = new ProcessBuilder(rutaGit, "--version");
             pb.redirectErrorStream(true);
             Process proceso = pb.start();
             int resultado = proceso.waitFor();
@@ -80,9 +76,6 @@ public class ControladorGit {
         }
     }
 
-    /**
-     * INSTALACIÓN DE GIT
-     */
     public boolean instalarGitWindows() {
         try {
             String url = "https://github.com/git-for-windows/git/releases/download/v2.42.0.windows.2/Git-2.42.0.2-64-bit.exe";
@@ -100,7 +93,7 @@ public class ControladorGit {
 
             ProcessBuilder instalacion = new ProcessBuilder(
                     "cmd.exe", "/c",
-                    archivoInstalador + " /SILENT /NORESTART /COMPONENTS=icons,ext\\reg\\shellhere,assoc,assoc_sh"
+                    archivoInstalador + " /SILENT /NORESTART /COMPONENTS=icons,assoc,assoc_sh"
             );
 
             Process procesoInstalacion = instalacion.start();
@@ -134,11 +127,10 @@ public class ControladorGit {
 
             Alert confirmacion = new Alert(Alert.AlertType.CONFIRMATION);
             confirmacion.setTitle("Instalar Git");
-            confirmacion.setHeaderText("Instalación Automática de Git");
-            confirmacion.setContentText("¿Deseas instalar Git automáticamente?\n\n"
-                    + "• Descargará la versión más reciente\n"
-                    + "• Instalación silenciosa\n"
-                    + "• Requiere conexión a internet\n"
+            confirmacion.setHeaderText("Instalación Automatica de Git");
+            confirmacion.setContentText("¿Deseas instalar Git automaticamente?\n\n"
+                    + "• Descargara la version mas reciente\n"
+                    + "• requiere conexion a internet\n"
                     + "• Tiempo estimado: 2-3 minutos");
 
             Optional<ButtonType> resultado = confirmacion.showAndWait();
@@ -146,7 +138,7 @@ public class ControladorGit {
 
                 Dialog<Boolean> dialogProgreso = new Dialog<>();
                 dialogProgreso.setTitle("Instalando Git");
-                dialogProgreso.setHeaderText("Instalación en progreso...");
+                dialogProgreso.setHeaderText("Instalacion en progreso...");
 
                 VBox contenido = new VBox(10);
                 contenido.setPadding(new Insets(20));
@@ -155,7 +147,7 @@ public class ControladorGit {
                 ProgressIndicator progress = new ProgressIndicator();
                 progress.setPrefSize(50, 50);
 
-                Label label = new Label("Descargando e instalando Git...\nEsto puede tomar varios minutos.\nPor favor no cierres la aplicación.");
+                Label label = new Label("Descargando e instalando git...\nEsto puede tomar varios minutos.\nPor favor no cierres la app.");
                 label.setStyle("-fx-text-alignment: center;");
 
                 contenido.getChildren().addAll(progress, label);
@@ -167,16 +159,16 @@ public class ControladorGit {
                     protected Boolean call() throws Exception {
                         try {
                             Platform.runLater(() -> {
-                                label.setText("Descargando Git... (~100 MB)");
+                                label.setText("Descargando Git... (~300 MB)");
                             });
 
                             boolean resultado = instalarGitWindows();
 
                             Platform.runLater(() -> {
                                 if (resultado) {
-                                    label.setText("Instalación completada!");
+                                    label.setText("instalacion completada");
                                 } else {
-                                    label.setText("Error en la instalación");
+                                    label.setText("Error en la instalacion");
                                 }
                             });
 
@@ -197,10 +189,10 @@ public class ControladorGit {
                     if (tareaInstalacion.getValue()) {
                         mostrarAlerta("Instalación Exitosa",
                                 "Git se instaló correctamente.\n\n"
-                                + "Ahora puedes usar el botón 'Desplegar a GitHub' para publicar automáticamente.");
+                                + "Ahora puedes usar el botón Desplegar a GitHub");
                     } else {
                         mostrarAlerta("Error de Instalación",
-                                "No se pudo instalar Git automáticamente.");
+                                "No se pudo instalar Git automaticamente.");
                     }
                 });
 
@@ -224,7 +216,7 @@ public class ControladorGit {
             }
 
         } catch (Exception e) {
-            mostrarAlerta("Error", "Error durante la instalación: " + e.getMessage());
+            mostrarAlerta("Error", "Error durante la instalacion: " + e.getMessage());
         }
     }
 

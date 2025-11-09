@@ -4,12 +4,18 @@
  */
 package Controlador;
 
+import Modelo.Inscripcion;
 import Modelo.Proyecto;
 import Modelo.Usuario;
+import java.awt.Desktop;
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -18,13 +24,17 @@ import javafx.scene.layout.VBox;
 import javafx.scene.layout.HBox;
 import javafx.collections.ObservableList;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.ResourceBundle;
 import javafx.animation.AnimationTimer;
 import javafx.application.Platform;
+import javafx.collections.FXCollections;
+import javafx.concurrent.Task;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Insets;
@@ -46,11 +56,9 @@ import javafx.stage.Stage;
  */
 public class ControladorDashboardFundacion implements Initializable {
 
-    // Componentes del Header
     @FXML
     private Label lblUsuario;
 
-    // Componentes de Cursos
     @FXML
     private TableView<Proyecto> tablaCursos;
     @FXML
@@ -72,9 +80,8 @@ public class ControladorDashboardFundacion implements Initializable {
     @FXML
     private TextArea txtDescripcion;
     @FXML
-    private VBox formContainer;
+    private ScrollPane formContainer;
 
-    // Componentes de Catálogo
     @FXML
     private TextArea areaCatalogoCursos;
     @FXML
@@ -82,45 +89,35 @@ public class ControladorDashboardFundacion implements Initializable {
     @FXML
     private TabPane tabPane;
 
+    @FXML
+    private Button btnAgregar;
+    @FXML
+    private Button btnEditar;
+    @FXML
+    private Button btnEliminar;
+
     private Usuario usuarioActual;
     private ObservableList<Proyecto> cursosData;
     private boolean editandoCurso = false;
     private Proyecto cursoEditando;
 
-    private final double NORMAL_WIDTH = 662.0;
-    private final double NORMAL_HEIGHT = 762.0;
-    private final double EXPANDED_WIDTH = 900.0;
-    private final double EXPANDED_HEIGHT = 700.0;
-
     private ControladorGit gestorGit;
-    
+
     @FXML
     Button btnGitHub;
-    
+
+    private ControladorGoogleSheets sheetsConnector;
+    private String googleSheetUrl;
+    private ObservableList<Inscripcion> inscripcionesData;
+
+    @FXML
+    private Label lblEstadoURL;
+
+    @FXML
+    private TableView<Inscripcion> tablaInscripciones;
+
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        if (tabPane != null) {
-            Platform.runLater(() -> {
-                Stage stage = (Stage) tabPane.getScene().getWindow();
-
-                tabPane.setPrefSize(NORMAL_WIDTH, NORMAL_HEIGHT);
-
-                tabPane.getSelectionModel().selectedItemProperty().addListener(
-                        (observable, oldTab, newTab) -> {
-                            if (newTab != null && newTab.getText().contains("Catálogo Visual")) {
-                                stage.setResizable(true);
-                                stage.setWidth(EXPANDED_WIDTH);
-                                stage.setHeight(EXPANDED_HEIGHT);
-                            } else {
-                                stage.setResizable(false);
-                                stage.setWidth(NORMAL_WIDTH);
-                                stage.setHeight(NORMAL_HEIGHT);
-                            }
-                            stage.centerOnScreen();
-                        }
-                );
-            });
-        }
 
         gestorGit = new ControladorGit(
                 this::mostrarAlerta,
@@ -131,11 +128,23 @@ public class ControladorDashboardFundacion implements Initializable {
         );
         gestorGit.limpiarCarpetasTemporalesPendientes();
         animarBorde(btnGitHub);
+
+        sheetsConnector = new ControladorGoogleSheets();
+        inscripcionesData = FXCollections.observableArrayList();
+
+        cargarURLGuardada();
+
+        if (googleSheetUrl == null || googleSheetUrl.isEmpty()) {
+            pedirURLAlUsuario();
+        }
+
+        configurarTablaInscripciones();
+        cargarInscripcionesDesdeBD();
     }
+
     public void animarBorde(Button btn) {
         final long startTime = System.nanoTime();
 
-        // ✨ Efecto de brillo general en el botón
         DropShadow glow = new DropShadow();
         glow.setRadius(15);
         glow.setSpread(0.6);
@@ -147,12 +156,10 @@ public class ControladorDashboardFundacion implements Initializable {
             public void handle(long now) {
                 double t = (now - startTime) / 1_000_000_000.0;
 
-                // 🎨 Colores tipo arcoíris muy saturados y brillantes
                 double hue1 = (t * 120) % 360;
                 double hue2 = (hue1 + 120) % 360;
                 double hue3 = (hue1 + 240) % 360;
 
-                // Aumentamos la saturación y brillo al máximo
                 Color c1 = Color.hsb(hue1, 1.0, 1.0);
                 Color c2 = Color.hsb(hue2, 1.0, 1.0);
                 Color c3 = Color.hsb(hue3, 1.0, 1.0);
@@ -161,7 +168,6 @@ public class ControladorDashboardFundacion implements Initializable {
                 String color2 = toRgbString(c2);
                 String color3 = toRgbString(c3);
 
-                // 🌟 Estilo del botón con borde animado
                 btn.setStyle(
                         "-fx-background-radius: 12;"
                         + "-fx-border-radius: 12;"
@@ -173,13 +179,13 @@ public class ControladorDashboardFundacion implements Initializable {
                         + "-fx-font-size: 14px;"
                 );
 
-                // 🔥 Hace que el glow cambie suavemente de color también
                 glow.setColor(c1.interpolate(c2, 0.5));
             }
         };
 
         timer.start();
     }
+
     private String toRgbString(Color color) {
         int r = (int) (color.getRed() * 255);
         int g = (int) (color.getGreen() * 255);
@@ -206,22 +212,37 @@ public class ControladorDashboardFundacion implements Initializable {
     }
 
     @FXML
+    private void desactivarBtns() {
+        btnAgregar.setDisable(true);
+        btnEditar.setDisable(true);
+        btnEliminar.setDisable(true);
+    }
+
+    @FXML
+    private void activarBtns() {
+        btnAgregar.setDisable(false);
+        btnEditar.setDisable(false);
+        btnEliminar.setDisable(false);
+    }
+
+    @FXML
     private void mostrarFormularioCurso() {
         formContainer.setVisible(true);
         editandoCurso = false;
+        desactivarBtns();
         limpiarFormulario();
     }
 
     @FXML
     private void ocultarFormulario() {
         formContainer.setVisible(false);
+        activarBtns();
         limpiarFormulario();
     }
 
     @FXML
     private void guardarCurso() {
         try {
-            // Tener los campos
             String nombre = txtNombreCurso.getText().trim();
             String descripcion = txtDescripcion.getText().trim();
             String categoria = txtCategoria.getText().trim();
@@ -230,35 +251,50 @@ public class ControladorDashboardFundacion implements Initializable {
             String cuposText = txtCupos.getText().trim();
             String linkGoogleForm = txtLinkGoogleForm.getText().trim();
 
-            if (datePickerInicio.getValue() == null || datePickerFin.getValue() == null) {
-                mostrarAlerta("Error", "Las fechas de inicio y fin son obligatorias");
+            if (nombre.isEmpty() || linkGoogleForm.isEmpty()) {
+                mostrarAlerta("Error", "Los campos marcados con * son obligatorios:\n• Nombre del curso\n• Enlace Google Form");
                 return;
             }
 
-            String fechaInicio = datePickerInicio.getValue().toString(); // Para formato YYYY-MM-DD
-            String fechaFin = datePickerFin.getValue().toString();
-
-            // Validar que fecha fin sea después de fecha inicio
-            if (datePickerFin.getValue().isBefore(datePickerInicio.getValue())) {
-                mostrarAlerta("Error", "La fecha fin debe ser posterior a la fecha inicio");
-                return;
+            if (categoria.isEmpty()) {
+                categoria = "General";
             }
-            // Resto de validaciones...
-            if (nombre.isEmpty() || duracion.isEmpty()
-                    || linkGoogleForm.isEmpty()) {
-                mostrarAlerta("Error", "Los campos marcados con * son obligatorios");
-                return;
+            if (duracion.isEmpty()) {
+                duracion = "No aplica";
             }
 
-            int cupos = Integer.parseInt(cuposText);
-            if (cupos <= 0) {
-                mostrarAlerta("Error", "Los cupos deben ser mayor a 0");
-                return;
+            int cupos = 0; 
+            if (!cuposText.isEmpty()) {
+                try {
+                    cupos = Integer.parseInt(cuposText);
+                    if (cupos <= 0) {
+                        mostrarAlerta("Error", "Los cupos deben ser mayor a 0");
+                        return;
+                    }
+                } catch (NumberFormatException e) {
+                    mostrarAlerta("Error", "Los cupos deben ser un número válido");
+                    return;
+                }
+            }
+
+            String fechaInicio = null;
+            String fechaFin = null;
+
+            if (datePickerInicio.getValue() != null) {
+                fechaInicio = datePickerInicio.getValue().toString();
+            }
+
+            if (datePickerFin.getValue() != null) {
+                fechaFin = datePickerFin.getValue().toString();
+
+                if (datePickerInicio.getValue() != null && datePickerFin.getValue().isBefore(datePickerInicio.getValue())) {
+                    mostrarAlerta("Error", "La fecha fin debe ser posterior a la fecha inicio");
+                    return;
+                }
             }
 
             Proyecto proyecto;
             if (editandoCurso) {
-                // Modo edición
                 proyecto = cursoEditando;
                 proyecto.setNombreCurso(nombre);
                 proyecto.setDescripcion(descripcion);
@@ -279,7 +315,6 @@ public class ControladorDashboardFundacion implements Initializable {
                     return;
                 }
             } else {
-                // Modo nuevo
                 proyecto = new Proyecto(usuarioActual.getId(), nombre, descripcion, categoria,
                         duracion, requisitos, cupos, fechaInicio, fechaFin, linkGoogleForm);
 
@@ -296,10 +331,9 @@ public class ControladorDashboardFundacion implements Initializable {
             cargarCursos();
             generarCatalogoCursos();
 
-        } catch (NumberFormatException e) {
-            mostrarAlerta("Error", "Los cupos deben ser un número válido");
         } catch (Exception e) {
             mostrarAlerta("Error", "Error inesperado: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -314,7 +348,6 @@ public class ControladorDashboardFundacion implements Initializable {
             txtRequisitos.setText(cursoSeleccionado.getRequisitos());
             txtCupos.setText(String.valueOf(cursoSeleccionado.getCuposDisponibles()));
 
-            // ✅ CARGAR FECHAS EN LOS DATEPICKER
             if (cursoSeleccionado.getFechaInicio() != null && !cursoSeleccionado.getFechaInicio().isEmpty()) {
                 try {
                     datePickerInicio.setValue(java.time.LocalDate.parse(cursoSeleccionado.getFechaInicio()));
@@ -374,16 +407,16 @@ public class ControladorDashboardFundacion implements Initializable {
             } catch (Exception e) {
                 areaCatalogoCursos.setText("Error generando catálogo: " + e.getMessage());
             }
+        } else {
+            areaCatalogoCursos.setText("No hay productos para mostrar o usuario no logueado");
         }
     }
 
     @FXML
     private void generarCatalogoVisual() {
         try {
-            // Limpiar el contenedor
             contenedorCatalogoVisual.getChildren().clear();
 
-            // Obtener cursos del usuario actual
             List<Proyecto> cursos = ControladorBD.obtenerProyectosPorUsuario(usuarioActual.getId());
 
             if (cursos.isEmpty()) {
@@ -393,25 +426,21 @@ public class ControladorDashboardFundacion implements Initializable {
                 return;
             }
 
-            // Crear un GridPane para organizar las tarjetas en columnas
             GridPane gridCursos = new GridPane();
             gridCursos.setHgap(20);
             gridCursos.setVgap(20);
-            gridCursos.setPadding(new Insets(15));
+            gridCursos.setPadding(new Insets(20)); // Cambiado de 15 a 20
 
             int columna = 0;
             int fila = 0;
-            int maxColumnas = 2; // Máximo 2 columnas
+            int maxColumnas = 4; // Cambiado de 2 a 4
 
-            // Crear tarjetas para cada curso
             for (Proyecto curso : cursos) {
                 if ("Activo".equals(curso.getEstado())) {
                     VBox tarjetaCurso = crearTarjetaCursoVisual(curso);
 
-                    // Agregar al grid
                     gridCursos.add(tarjetaCurso, columna, fila);
 
-                    // Mover a la siguiente columna/fila
                     columna++;
                     if (columna >= maxColumnas) {
                         columna = 0;
@@ -422,11 +451,10 @@ public class ControladorDashboardFundacion implements Initializable {
 
             contenedorCatalogoVisual.getChildren().add(gridCursos);
 
-            // Mostrar mensaje de éxito
             Alert alert = new Alert(Alert.AlertType.INFORMATION);
             alert.setTitle("Catálogo Generado");
             alert.setHeaderText(null);
-            alert.setContentText("✅ Se generaron " + cursos.size() + " cursos en el catálogo visual");
+            alert.setContentText("Se generaron " + cursos.size() + " cursos en el catálogo visual"); // Emoji removido
             alert.showAndWait();
 
         } catch (Exception e) {
@@ -437,17 +465,18 @@ public class ControladorDashboardFundacion implements Initializable {
     private VBox crearTarjetaCursoVisual(Proyecto curso) {
         VBox tarjeta = new VBox(10);
         tarjeta.setStyle("-fx-padding: 15; -fx-background-color: white; -fx-border-radius: 10; -fx-border-color: #ddd; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 5, 0, 0, 2);");
-        tarjeta.setPrefWidth(300);
-        tarjeta.setMaxWidth(300);
 
-        //IMAGEN DEL CURSO
+        // Dimensiones exactas igual al primer código
+        tarjeta.setPrefWidth(330);
+        tarjeta.setMaxWidth(330);
+        tarjeta.setMinWidth(330);
+
         ImageView imageView = new ImageView();
         imageView.setFitWidth(270);
-        imageView.setFitHeight(180);
+        imageView.setFitHeight(200); // Cambiado de 180 a 200
         imageView.setPreserveRatio(true);
         imageView.setStyle("-fx-border-radius: 8; -fx-border-color: #eee;");
 
-        // Cargar imagen del curso
         if (curso.getImagenPath() != null && !curso.getImagenPath().isEmpty()) {
             try {
                 File file = new File(curso.getImagenPath());
@@ -455,7 +484,6 @@ public class ControladorDashboardFundacion implements Initializable {
                     Image image = new Image(file.toURI().toString());
                     imageView.setImage(image);
                 } else {
-                    // Imagen por defecto para cursos
                     imageView.setImage(crearImagenPorDefectoCursos());
                 }
             } catch (Exception e) {
@@ -465,53 +493,176 @@ public class ControladorDashboardFundacion implements Initializable {
             imageView.setImage(crearImagenPorDefectoCursos());
         }
 
-        // ✅ BOTONES PARA GESTIÓN DE IMAGEN
-        HBox botonesImagen = new HBox(5);
+        HBox botonesImagen = new HBox(8); // Cambiado de 5 a 8
         botonesImagen.setAlignment(javafx.geometry.Pos.CENTER);
 
-        Button btnCambiarImagen = new Button("📷 Cambiar Imagen");
-        btnCambiarImagen.setStyle("-fx-font-size: 10; -fx-pref-height: 25; -fx-pref-width: 120;");
-        btnCambiarImagen.setOnAction(e -> seleccionarImagenParaCurso(curso));
+        // Botón Cambiar Imagen - Estilo idéntico al primer código
+        Button btnCambiarImagen = new Button("📷 Cambiar");
+        btnCambiarImagen.setStyle(
+                "-fx-font-size: 12px; "
+                + "-fx-font-weight: bold; "
+                + "-fx-text-fill: white; "
+                + "-fx-background-color: linear-gradient(to bottom, #10b981, #0da271); "
+                + "-fx-border-radius: 6px; "
+                + "-fx-background-radius: 6px; "
+                + "-fx-padding: 8px 12px; "
+                + "-fx-cursor: hand; "
+                + "-fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.3), 4, 0, 0, 2);"
+        );
 
-        Button btnCopiarConImagen = new Button("📋 Copiar Curso");
-        btnCopiarConImagen.setStyle("-fx-font-size: 10; -fx-pref-height: 25; -fx-pref-width: 120;");
+        btnCambiarImagen.setOnMouseEntered(e -> {
+            btnCambiarImagen.setStyle(
+                    "-fx-font-size: 12px; "
+                    + "-fx-font-weight: bold; "
+                    + "-fx-text-fill: white; "
+                    + "-fx-background-color: linear-gradient(to bottom, #0da271, #0b8a5c); "
+                    + "-fx-border-radius: 6px; "
+                    + "-fx-background-radius: 6px; "
+                    + "-fx-padding: 8px 12px; "
+                    + "-fx-cursor: hand; "
+                    + "-fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.5), 6, 0, 0, 3); "
+                    + "-fx-translate-y: -1px;"
+            );
+        });
+
+        btnCambiarImagen.setOnMouseExited(e -> {
+            btnCambiarImagen.setStyle(
+                    "-fx-font-size: 12px; "
+                    + "-fx-font-weight: bold; "
+                    + "-fx-text-fill: white; "
+                    + "-fx-background-color: linear-gradient(to bottom, #10b981, #0da271); "
+                    + "-fx-border-radius: 6px; "
+                    + "-fx-background-radius: 6px; "
+                    + "-fx-padding: 8px 12px; "
+                    + "-fx-cursor: hand; "
+                    + "-fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.3), 4, 0, 0, 2);"
+            );
+        });
+
+        // Botón Copiar Curso - Estilo idéntico al primer código
+        Button btnCopiarConImagen = new Button("📋 Copiar");
+        btnCopiarConImagen.setStyle(
+                "-fx-font-size: 12px; "
+                + "-fx-font-weight: bold; "
+                + "-fx-text-fill: white; "
+                + "-fx-background-color: linear-gradient(to bottom, #3b82f6, #2563eb); "
+                + "-fx-border-radius: 6px; "
+                + "-fx-background-radius: 6px; "
+                + "-fx-padding: 8px 12px; "
+                + "-fx-cursor: hand; "
+                + "-fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.3), 4, 0, 0, 2);"
+        );
+
+        btnCopiarConImagen.setOnMouseEntered(e -> {
+            btnCopiarConImagen.setStyle(
+                    "-fx-font-size: 12px; "
+                    + "-fx-font-weight: bold; "
+                    + "-fx-text-fill: white; "
+                    + "-fx-background-color: linear-gradient(to bottom, #2563eb, #1d4ed8); "
+                    + "-fx-border-radius: 6px; "
+                    + "-fx-background-radius: 6px; "
+                    + "-fx-padding: 8px 12px; "
+                    + "-fx-cursor: hand; "
+                    + "-fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.5), 6, 0, 0, 3); "
+                    + "-fx-translate-y: -1px;"
+            );
+        });
+
+        btnCopiarConImagen.setOnMouseExited(e -> {
+            btnCopiarConImagen.setStyle(
+                    "-fx-font-size: 12px; "
+                    + "-fx-font-weight: bold; "
+                    + "-fx-text-fill: white; "
+                    + "-fx-background-color: linear-gradient(to bottom, #3b82f6, #2563eb); "
+                    + "-fx-border-radius: 6px; "
+                    + "-fx-background-radius: 6px; "
+                    + "-fx-padding: 8px 12px; "
+                    + "-fx-cursor: hand; "
+                    + "-fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.3), 4, 0, 0, 2);"
+            );
+        });
+
+        // Efectos de presión
+        btnCambiarImagen.setOnMousePressed(e -> {
+            btnCambiarImagen.setStyle(btnCambiarImagen.getStyle() + " -fx-translate-y: 1px;");
+        });
+
+        btnCopiarConImagen.setOnMousePressed(e -> {
+            btnCopiarConImagen.setStyle(btnCopiarConImagen.getStyle() + " -fx-translate-y: 1px;");
+        });
+
+        btnCambiarImagen.setOnAction(e -> seleccionarImagenParaCurso(curso));
         btnCopiarConImagen.setOnAction(e -> copiarCursoConImagen(curso, imageView));
 
         botonesImagen.getChildren().addAll(btnCambiarImagen, btnCopiarConImagen);
 
-        // ✅ INFORMACIÓN DEL CURSO
-        Label lblNombre = new Label("🎓 " + curso.getNombreCurso());
-        lblNombre.setStyle("-fx-font-weight: bold; -fx-font-size: 16; -fx-text-fill: #2c3e50;");
-        lblNombre.setWrapText(true);
+        // Etiquetas con estilos consistentes
+        Label lblNombre = new Label(curso.getNombreCurso()); // Emoji removido
+        lblNombre.setStyle("-fx-font-weight: bold; -fx-font-size: 16; -fx-text-fill: #2c3e50; -fx-wrap-text: true;");
+        lblNombre.setMaxWidth(270);
 
-        Label lblCategoria = new Label("📚 " + curso.getCategoriaCurso());
-        lblCategoria.setStyle("-fx-font-size: 14; -fx-text-fill: #7e57c2;");
+        Label lblCategoria = new Label("🏷" + curso.getCategoriaCurso()); // Emoji cambiado
+        lblCategoria.setStyle("-fx-font-size: 12; -fx-text-fill: #7f8c8d; -fx-wrap-text: true;");
 
-        Label lblDuracion = new Label("⏱️ " + curso.getDuracion());
-        lblDuracion.setStyle("-fx-font-size: 14; -fx-text-fill: #f57c00;");
+        Label lblDuracion = new Label("⏱" + curso.getDuracion());
+        lblDuracion.setStyle("-fx-font-size: 14; -fx-text-fill: #3498db;"); // Color cambiado a azul
 
-        Label lblCupos = new Label("👥 Cupos: " + curso.getCuposDisponibles());
-        lblCupos.setStyle("-fx-font-size: 14; -fx-text-fill: #43a047; -fx-font-weight: bold;");
+        Label lblCupos = new Label("📦 Cupos: " + curso.getCuposDisponibles()); // Emoji cambiado
+        lblCupos.setStyle("-fx-font-size: 14; -fx-text-fill: #27ae60; -fx-font-weight: bold;"); // Color cambiado a verde
 
         Label lblFechas = new Label("📅 " + formatearFecha(curso.getFechaInicio()) + " - " + formatearFecha(curso.getFechaFin()));
         lblFechas.setStyle("-fx-font-size: 14; -fx-text-fill: #5a6c7d;");
 
-        // Descripción (si existe)
-        if (curso.getDescripcion() != null && !curso.getDescripcion().isEmpty()) {
-            TextArea txtDescripcion = new TextArea(curso.getDescripcion());
-            txtDescripcion.setEditable(false);
-            txtDescripcion.setPrefRowCount(2);
-            txtDescripcion.setPrefHeight(60);
-            txtDescripcion.setStyle("-fx-font-size: 12; -fx-background-color: #f8f9fa; -fx-border-color: #e9ecef;");
-            tarjeta.getChildren().add(txtDescripcion);
-        }
+        // Botón Inscribirse con estilo similar
+        Button btnInscribirse = new Button("📝 Inscribirse");
+        btnInscribirse.setStyle(
+                "-fx-font-size: 12px; "
+                + "-fx-font-weight: bold; "
+                + "-fx-text-fill: white; "
+                + "-fx-background-color: linear-gradient(to bottom, #8b5cf6, #7c3aed); "
+                + "-fx-border-radius: 6px; "
+                + "-fx-background-radius: 6px; "
+                + "-fx-padding: 8px 12px; "
+                + "-fx-cursor: hand; "
+                + "-fx-effect: dropshadow(gaussian, rgba(139, 92, 246, 0.3), 4, 0, 0, 2);"
+        );
 
-        // ✅ BOTÓN DE INSCRIPCIÓN
-        Button btnInscribirse = new Button("📝 Inscribirse en el Curso");
-        btnInscribirse.setStyle("-fx-background-color: #4285f4; -fx-text-fill: white; -fx-font-weight: bold; -fx-pref-height: 35;");
+        btnInscribirse.setOnMouseEntered(e -> {
+            btnInscribirse.setStyle(
+                    "-fx-font-size: 12px; "
+                    + "-fx-font-weight: bold; "
+                    + "-fx-text-fill: white; "
+                    + "-fx-background-color: linear-gradient(to bottom, #7c3aed, #6d28d9); "
+                    + "-fx-border-radius: 6px; "
+                    + "-fx-background-radius: 6px; "
+                    + "-fx-padding: 8px 12px; "
+                    + "-fx-cursor: hand; "
+                    + "-fx-effect: dropshadow(gaussian, rgba(139, 92, 246, 0.5), 6, 0, 0, 3); "
+                    + "-fx-translate-y: -1px;"
+            );
+        });
+
+        btnInscribirse.setOnMouseExited(e -> {
+            btnInscribirse.setStyle(
+                    "-fx-font-size: 12px; "
+                    + "-fx-font-weight: bold; "
+                    + "-fx-text-fill: white; "
+                    + "-fx-background-color: linear-gradient(to bottom, #8b5cf6, #7c3aed); "
+                    + "-fx-border-radius: 6px; "
+                    + "-fx-background-radius: 6px; "
+                    + "-fx-padding: 8px 12px; "
+                    + "-fx-cursor: hand; "
+                    + "-fx-effect: dropshadow(gaussian, rgba(139, 92, 246, 0.3), 4, 0, 0, 2);"
+            );
+        });
+
+        btnInscribirse.setOnMousePressed(e -> {
+            btnInscribirse.setStyle(btnInscribirse.getStyle() + " -fx-translate-y: 1px;");
+        });
+
         btnInscribirse.setOnAction(e -> abrirGoogleForm(curso.getLinkGoogleForm()));
 
-        // Agregar todos los componentes a la tarjeta
+        // Construcción de la tarjeta
         tarjeta.getChildren().addAll(
                 imageView,
                 botonesImagen,
@@ -522,24 +673,22 @@ public class ControladorDashboardFundacion implements Initializable {
                 lblFechas
         );
 
-        // Agregar descripción si existe
         if (curso.getDescripcion() != null && !curso.getDescripcion().isEmpty()) {
             TextArea txtDesc = new TextArea(curso.getDescripcion());
             txtDesc.setEditable(false);
+            txtDesc.setWrapText(true);
             txtDesc.setPrefRowCount(2);
-            txtDesc.setPrefHeight(50);
-            txtDesc.setStyle("-fx-font-size: 12; -fx-background-color: #f8f9fa;");
+            txtDesc.setPrefHeight(60);
+            txtDesc.setStyle("-fx-font-size: 12; -fx-background-color: #f8f9fa; -fx-border-color: #e9ecef;");
             tarjeta.getChildren().add(txtDesc);
         }
 
-        // Agregar requisitos si existen
         if (curso.getRequisitos() != null && !curso.getRequisitos().isEmpty()) {
             Label lblRequisitos = new Label("🎯 Requisitos: " + curso.getRequisitos());
             lblRequisitos.setStyle("-fx-font-size: 12; -fx-text-fill: #6d4c41; -fx-wrap-text: true;");
             tarjeta.getChildren().add(lblRequisitos);
         }
 
-        // Finalmente el botón de inscripción
         tarjeta.getChildren().add(btnInscribirse);
 
         return tarjeta;
@@ -553,7 +702,6 @@ public class ControladorDashboardFundacion implements Initializable {
         }
     }
 
-    // ✅ MÉTODO PARA CAMBIAR IMAGEN DE UN CURSO EXISTENTE
     private void seleccionarImagenParaCurso(Proyecto curso) {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Seleccionar imagen para: " + curso.getNombreCurso());
@@ -565,17 +713,13 @@ public class ControladorDashboardFundacion implements Initializable {
         File file = fileChooser.showOpenDialog(null);
         if (file != null) {
             try {
-                // Guardar la ruta en la base de datos
                 curso.setImagenPath(file.getAbsolutePath());
 
-                // Actualizar en la base de datos
                 boolean exito = ControladorBD.actualizarProyectoConImagen(curso);
 
                 if (exito) {
-                    // Regenerar el catálogo visual
                     generarCatalogoVisual();
 
-                    // Mostrar mensaje de éxito
                     mostrarAlerta("Éxito", "Imagen actualizada correctamente para: " + curso.getNombreCurso());
                 } else {
                     mostrarAlerta("Error", "No se pudo guardar la imagen en la base de datos");
@@ -587,23 +731,17 @@ public class ControladorDashboardFundacion implements Initializable {
         }
     }
 
-    // MÉTODO PARA COPIAR CURSO CON IMAGEN
-    // ACTUALIZAR ESTE MÉTODO PARA QUE COPIE LA IMAGEN TAMBIÉN
     private void copiarCursoConImagen(Proyecto curso, ImageView imageView) {
         try {
-            // Crear contenido mixto (imagen + texto)
             ClipboardContent content = new ClipboardContent();
 
-            // Copiar imagen si existe
             if (imageView.getImage() != null) {
                 content.putImage(imageView.getImage());
             }
 
-            // Copiar texto descriptivo del curso
             String textoCurso = crearTextoCurso(curso);
             content.putString(textoCurso);
 
-            // Copiar al portapapeles
             Clipboard.getSystemClipboard().setContent(content);
 
             mostrarAlerta("Éxito", "Curso copiado al portapapeles:\n" + curso.getNombreCurso()
@@ -614,12 +752,11 @@ public class ControladorDashboardFundacion implements Initializable {
         }
     }
 
-    // metodo para crear texto del curso
     private String crearTextoCurso(Proyecto curso) {
         StringBuilder sb = new StringBuilder();
         sb.append("🎓 ").append(curso.getNombreCurso()).append("\n");
         sb.append("📚 ").append(curso.getCategoriaCurso()).append("\n");
-        sb.append("⏱️ ").append(curso.getDuracion()).append("\n");
+        sb.append("⏱").append(curso.getDuracion()).append("\n");
         sb.append("👥 ").append(curso.getCuposDisponibles()).append(" cupos disponibles\n");
         sb.append("📅 ").append(formatearFecha(curso.getFechaInicio())).append(" - ").append(formatearFecha(curso.getFechaFin())).append("\n");
 
@@ -636,19 +773,15 @@ public class ControladorDashboardFundacion implements Initializable {
         return sb.toString();
     }
 
-    // img por defecto para cursos
     private Image crearImagenPorDefectoCursos() {
         try {
-            // Intenta cargar una imagen por defecto desde recursos
             InputStream is = getClass().getResourceAsStream("/images/curso_placeholder.png");
             if (is != null) {
                 return new Image(is);
             }
         } catch (Exception e) {
-            // Si no hay imagen, continuamos
         }
 
-        // Si no hay imagen por defecto, retornamos null
         return null;
     }
 
@@ -672,7 +805,7 @@ public class ControladorDashboardFundacion implements Initializable {
                     = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
             return fecha.format(formatter);
         } catch (Exception e) {
-            return fechaBD; // Si hay error, devolver el original
+            return fechaBD;
         }
     }
 
@@ -710,7 +843,6 @@ public class ControladorDashboardFundacion implements Initializable {
             File carpetaImagenes = new File(carpetaWeb, "imagenes_cursos");
             carpetaImagenes.mkdirs();
 
-            // ✅ VERIFICAR QUE SE EJECUTE
             System.out.println("=== INICIANDO EXPORTACIÓN DE CURSOS ===");
             int totalImagenes = copiarImagenesDeCursos(carpetaImagenes);
             System.out.println("Imágenes de cursos procesadas: " + totalImagenes);
@@ -718,7 +850,6 @@ public class ControladorDashboardFundacion implements Initializable {
             File htmlFile = new File(carpetaWeb, "index.html");
             crearHTMLDelCatalogoCursos(htmlFile);
 
-            // ✅ MOSTRAR RESULTADO REAL
             mostrarAlerta("Éxito", "📁 Carpeta 'catalogo_cursos_web' generada con:\n"
                     + "• index.html\n"
                     + "• imagenes/ (con " + totalImagenes + " imágenes)\n\n"
@@ -732,14 +863,6 @@ public class ControladorDashboardFundacion implements Initializable {
         }
     }
 
-    private String obtenerExtension(String nombreArchivo) {
-        int lastDot = nombreArchivo.lastIndexOf('.');
-        return (lastDot > 0) ? nombreArchivo.substring(lastDot + 1) : "jpg";
-    }
-
-    /**
-     * OBTIENE EL ImageView DE UNA TARJETA DE CURSO
-     */
     private ImageView obtenerImageViewDeTarjetaCurso(VBox tarjeta) {
         try {
             System.out.println("=== BUSCANDO IMAGEVIEW DE CURSO ===");
@@ -770,7 +893,6 @@ public class ControladorDashboardFundacion implements Initializable {
         int imagenesCopiadas = 0;
 
         try {
-            // ✅ VERIFICAR QUE EL MÉTODO SE EJECUTA
             System.out.println("=== COPIANDO IMÁGENES DE CURSOS ===");
             System.out.println("Carpeta destino: " + carpetaImagenes.getAbsolutePath());
 
@@ -787,10 +909,8 @@ public class ControladorDashboardFundacion implements Initializable {
 
                             if (imageView != null && imageView.getImage() != null) {
                                 try {
-                                    // ✅ CONVERTIR A JPG PARA CONSISTENCIA
                                     java.awt.image.BufferedImage bufferedImage = SwingFXUtils.fromFXImage(imageView.getImage(), null);
 
-                                    // ✅ CREAR NUEVA IMAGEN CON FONDO BLANCO (evita fondos negros)
                                     java.awt.image.BufferedImage nuevaImagen = new java.awt.image.BufferedImage(
                                             bufferedImage.getWidth(),
                                             bufferedImage.getHeight(),
@@ -803,7 +923,6 @@ public class ControladorDashboardFundacion implements Initializable {
                                     g2d.drawImage(bufferedImage, 0, 0, null);
                                     g2d.dispose();
 
-                                    // ✅ GUARDAR COMO JPG
                                     File imagenDestino = new File(carpetaImagenes, "curso" + numero + ".jpg");
                                     javax.imageio.ImageIO.write(nuevaImagen, "jpg", imagenDestino);
 
@@ -812,7 +931,6 @@ public class ControladorDashboardFundacion implements Initializable {
 
                                 } catch (Exception e) {
                                     System.err.println("❌ Error copiando imagen curso " + numero + ": " + e.getMessage());
-                                    // Intentar método simple como fallback
                                     try {
                                         java.awt.image.BufferedImage bufferedImage = SwingFXUtils.fromFXImage(imageView.getImage(), null);
                                         File imagenDestino = new File(carpetaImagenes, "curso" + numero + ".jpg");
@@ -885,7 +1003,6 @@ public class ControladorDashboardFundacion implements Initializable {
             font-size: 1.2em;
             opacity: 0.9;
         }
-        /* ✅ GRID DE 2 COLUMNAS */
         .cursos-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -911,7 +1028,6 @@ public class ControladorDashboardFundacion implements Initializable {
             transform: translateY(-5px);
             box-shadow: 0 12px 30px rgba(0,0,0,0.2);
         }
-        /* ✅ IMAGEN ADAPTADA PARA 2 COLUMNAS */
         .curso-imagen-container {
             text-align: center;
             margin: 0 auto 20px auto;
@@ -955,7 +1071,6 @@ public class ControladorDashboardFundacion implements Initializable {
             display: inline-block;
             margin-bottom: 20px;
         }
-        /* ✅ CONTENEDOR DE BOTONES */
         .botones-container {
             display: flex;
             flex-direction: column;
@@ -963,7 +1078,6 @@ public class ControladorDashboardFundacion implements Initializable {
             margin-top: 20px;
             width: 100%;
         }
-        /* ✅ BOTÓN DE INSCRIPCIÓN (Google Form) */
         .boton-inscripcion {
             background: linear-gradient(135deg, #34A853, #0F9D58);
             color: white;
@@ -1020,7 +1134,6 @@ public class ControladorDashboardFundacion implements Initializable {
             color: #6c757d;
             border-top: 1px solid #dee2e6;
         }
-        /* ✅ RESPONSIVE: EN MÓVIL SE MANTIENE 1 COLUMNA */
         @media (max-width: 768px) {
             .cursos-grid {
                 grid-template-columns: 1fr;
@@ -1037,14 +1150,11 @@ public class ControladorDashboardFundacion implements Initializable {
                 height: 300px;
                 font-size: 1em;
             }
-            
-            /* ✅ ESTILOS ESPECÍFICOS PARA BOTONES EN MÓVIL */
             .botones-container {
                 flex-direction: column;
                 gap: 10px;
                 margin-top: 15px;
             }
-            
             .boton-inscripcion, 
             .boton-whatsapp {
                 width: 100%;
@@ -1060,42 +1170,34 @@ public class ControladorDashboardFundacion implements Initializable {
                 overflow: hidden;
                 text-overflow: ellipsis;
             }
-            
             .curso-card {
                 padding: 20px;
                 margin: 0 5px;
             }
         }
-        /* ✅ PARA PANTALLAS GRANDES MÁXIMO 2 COLUMNAS */
         @media (min-width: 1200px) {
             .cursos-grid {
                 grid-template-columns: repeat(2, 1fr);
                 max-width: 1300px;
             }
         }
-        
-        /* ✅ PARA MÓVILES MUY PEQUEÑOS */
         @media (max-width: 480px) {
             .cursos-grid {
                 padding: 10px;
                 gap: 20px;
             }
-            
             .curso-card {
                 padding: 15px;
             }
-            
             .boton-inscripcion, 
             .boton-whatsapp {
                 padding: 14px 8px;
                 font-size: 15px;
                 min-height: 44px;
             }
-            
             .header {
                 padding: 30px 15px;
             }
-            
             .header h1 {
                 font-size: 1.8em;
             }
@@ -1109,7 +1211,6 @@ public class ControladorDashboardFundacion implements Initializable {
             <p>Impulsa360 - Programa de Formación</p>
 """);
 
-            // Información de la fundación
             if (usuarioActual != null) {
                 html.append("<p><strong>Fundación:</strong> ").append(usuarioActual.getNombreCompleto()).append("</p>");
             }
@@ -1119,7 +1220,6 @@ public class ControladorDashboardFundacion implements Initializable {
         <div class="cursos-grid">
 """);
 
-            // Procesar cada curso
             int contador = 0;
             for (javafx.scene.Node node : contenedorCatalogoVisual.getChildren()) {
                 if (node instanceof GridPane) {
@@ -1134,7 +1234,6 @@ public class ControladorDashboardFundacion implements Initializable {
                 }
             }
 
-            // Pie de página
             html.append("""
         </div>
         <div class="footer">
@@ -1151,7 +1250,6 @@ public class ControladorDashboardFundacion implements Initializable {
 </html>
 """);
 
-            // Guardar archivo
             java.nio.file.Files.write(file.toPath(), html.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
         } catch (Exception e) {
@@ -1161,7 +1259,6 @@ public class ControladorDashboardFundacion implements Initializable {
 
     private String obtenerLinkGoogleFormDeCurso(String nombreCurso) {
         try {
-            // Buscar el curso en los datos por nombre
             for (Proyecto curso : cursosData) {
                 if (curso.getNombreCurso().equals(nombreCurso)) {
                     return curso.getLinkGoogleForm();
@@ -1178,7 +1275,6 @@ public class ControladorDashboardFundacion implements Initializable {
             StringBuilder cursoHTML = new StringBuilder();
             cursoHTML.append("<div class=\"curso-card\">\n");
 
-            // ✅ 1. EXTRAER LA INFORMACIÓN DEL CURSO
             String nombreCurso = "Curso";
             String categoria = "Categoría";
             String duracion = "Duración";
@@ -1187,7 +1283,6 @@ public class ControladorDashboardFundacion implements Initializable {
             String descripcion = "Descripción";
             String requisitos = "Requisitos";
 
-            // Extraer datos de los labels dentro del VBox
             for (javafx.scene.Node node : tarjetaCurso.getChildren()) {
                 if (node instanceof Label) {
                     Label label = (Label) node;
@@ -1197,7 +1292,7 @@ public class ControladorDashboardFundacion implements Initializable {
                             nombreCurso = texto.substring(2).trim();
                         } else if (texto.startsWith("📚")) {
                             categoria = texto.substring(2).trim();
-                        } else if (texto.startsWith("⏱️")) {
+                        } else if (texto.startsWith("⏱")) {
                             duracion = texto.substring(2).trim();
                         } else if (texto.startsWith("👥")) {
                             cupos = texto.substring(2).trim();
@@ -1210,7 +1305,6 @@ public class ControladorDashboardFundacion implements Initializable {
                 }
             }
 
-            // ✅ 2. BUSCAR EL ImageView PARA LA IMAGEN REAL
             ImageView imageView = null;
             for (javafx.scene.Node node : tarjetaCurso.getChildren()) {
                 if (node instanceof ImageView) {
@@ -1228,9 +1322,7 @@ public class ControladorDashboardFundacion implements Initializable {
                 }
             }
 
-            // ✅ 3. GENERAR HTML CON IMAGEN REAL O PLACEHOLDER
             if (imageView != null && imageView.getImage() != null) {
-                // ✅ IMAGEN REAL - usar ruta relativa para GitHub Pages
                 cursoHTML.append("<div class=\"curso-imagen-container\">\n");
                 cursoHTML.append("<img src=\"imagenes_cursos/curso")
                         .append(numero)
@@ -1239,7 +1331,6 @@ public class ControladorDashboardFundacion implements Initializable {
                         .append("\">\n");
                 cursoHTML.append("</div>\n");
             } else {
-                // ❌ PLACEHOLDER (solo si no hay imagen)
                 cursoHTML.append("<div class=\"curso-imagen-container\">\n");
                 cursoHTML.append("<div class=\"curso-imagen-placeholder\">🎓 Curso<br>")
                         .append(escapeHTML(nombreCurso))
@@ -1247,11 +1338,10 @@ public class ControladorDashboardFundacion implements Initializable {
                 cursoHTML.append("</div>\n");
             }
 
-            // ✅ 4. INFORMACIÓN DEL CURSO
             cursoHTML.append("<div class=\"curso-info\">\n");
             cursoHTML.append("<div class=\"curso-nombre\">").append(numero).append(". ").append(escapeHTML(nombreCurso)).append("</div>\n");
             cursoHTML.append("<div class=\"curso-categoria\">📚 ").append(escapeHTML(categoria)).append("</div>\n");
-            cursoHTML.append("<div class=\"curso-duracion\">⏱️ ").append(escapeHTML(duracion)).append("</div>\n");
+            cursoHTML.append("<div class=\"curso-duracion\">⏱ ").append(escapeHTML(duracion)).append("</div>\n");
             cursoHTML.append("<div class=\"curso-cupos\">👥 ").append(escapeHTML(cupos)).append("</div>\n");
             cursoHTML.append("<div class=\"curso-fechas\">📅 ").append(escapeHTML(fechas)).append("</div>\n");
 
@@ -1265,12 +1355,10 @@ public class ControladorDashboardFundacion implements Initializable {
 
             cursoHTML.append("</div>\n");
 
-            // ✅ 5. BOTONES DE ACCIÓN
             String linkGoogleForm = obtenerLinkGoogleFormDeCurso(nombreCurso);
 
             cursoHTML.append("<div class=\"botones-container\">\n");
 
-            // Botón de Google Form (inscripción)
             if (linkGoogleForm != null && !linkGoogleForm.equals("#")) {
                 cursoHTML.append("<a href=\"").append(escapeHTML(linkGoogleForm))
                         .append("\" target=\"_blank\" class=\"boton-inscripcion\" title=\"Inscribirse en el curso: ")
@@ -1280,7 +1368,6 @@ public class ControladorDashboardFundacion implements Initializable {
                         .append("</a>\n");
             }
 
-            // Botón de WhatsApp
             String mensajeWhatsApp = "Hola! Estoy interesado en el curso: " + nombreCurso;
             String enlaceWhatsApp = "https://wa.me/573127125150?text=" + java.net.URLEncoder.encode(mensajeWhatsApp, "UTF-8");
 
@@ -1297,107 +1384,6 @@ public class ControladorDashboardFundacion implements Initializable {
             e.printStackTrace();
             return "<div class=\"curso-card\">Error generando curso</div>";
         }
-    }
-
-    private String obtenerExtensionDeCurso(Proyecto curso, int numero) {
-        // Obtener la ruta de la imagen del curso
-        String rutaImagen = curso.getImagenPath();
-
-        // Verificar si la ruta es válida
-        if (rutaImagen == null || rutaImagen.isEmpty()) {
-            return "jpg"; // Extensión por defecto
-        }
-
-        // Encontrar la posición del último punto
-        int ultimoPunto = rutaImagen.lastIndexOf('.');
-
-        // Encontrar la posición del último separador de carpeta
-        int ultimaBarra = Math.max(rutaImagen.lastIndexOf('/'), rutaImagen.lastIndexOf('\\'));
-
-        // Asegurarse de que el punto está después del último separador de carpeta y que hay caracteres después
-        if (ultimoPunto > ultimaBarra && ultimoPunto < rutaImagen.length() - 1) {
-            return rutaImagen.substring(ultimoPunto + 1); // Extraer la extensión sin el punto
-        }
-
-        return "jpg"; // Extensión por defecto si no se puede determinar
-    }
-
-    private String crearHTMLCurso(Proyecto curso, int numero) throws UnsupportedEncodingException {
-        StringBuilder cursoHTML = new StringBuilder();
-
-        cursoHTML.append("<div class=\"curso-card\">\n");
-
-        // Estado activo
-        cursoHTML.append("<div class=\"estado-activo\">✅ INSCRIPCIONES ABIERTAS</div>\n");
-
-        // ✅ CORREGIDO: Usar ruta relativa JPG en lugar de Base64 PNG
-        cursoHTML.append("<div class=\"curso-imagen-container\">\n");
-
-        // Verificar si existe la imagen
-        File imagenFile = new File("imagenes/curso" + numero + ".jpg");
-        if (imagenFile.exists()) {
-            cursoHTML.append("<img src=\"imagenes/curso")
-                    .append(numero)
-                    .append(".jpg\" class=\"curso-imagen\" alt=\"")
-                    .append(escapeHTML(curso.getNombreCurso()))
-                    .append("\">\n");
-        } else {
-            // Placeholder si no hay imagen
-            cursoHTML.append("<div class=\"curso-imagen-placeholder\">🎓 Imagen del Curso<br>")
-                    .append(escapeHTML(curso.getNombreCurso()))
-                    .append("</div>\n");
-        }
-
-        cursoHTML.append("</div>\n");
-
-        // ✅ INFORMACIÓN DEL CURSO (agregar esta sección)
-        cursoHTML.append("<div class=\"curso-info\">\n");
-        cursoHTML.append("<div class=\"curso-nombre\">").append(numero).append(". ").append(escapeHTML(curso.getNombreCurso())).append("</div>\n");
-        cursoHTML.append("<div class=\"curso-categoria\">📚 ").append(escapeHTML(curso.getCategoriaCurso())).append("</div>\n");
-        cursoHTML.append("<div class=\"curso-duracion\">⏱️ ").append(escapeHTML(curso.getDuracion())).append("</div>\n");
-        cursoHTML.append("<div class=\"curso-cupos\">👥 ").append(curso.getCuposDisponibles()).append(" cupos disponibles</div>\n");
-        cursoHTML.append("<div class=\"curso-fechas\">📅 ").append(formatearFecha(curso.getFechaInicio())).append(" - ").append(formatearFecha(curso.getFechaFin())).append("</div>\n");
-
-        if (curso.getDescripcion() != null && !curso.getDescripcion().isEmpty()) {
-            cursoHTML.append("<div class=\"curso-descripcion\">📝 ").append(escapeHTML(curso.getDescripcion())).append("</div>\n");
-        }
-
-        if (curso.getRequisitos() != null && !curso.getRequisitos().isEmpty()) {
-            cursoHTML.append("<div class=\"curso-requisitos\">🎯 Requisitos: ").append(escapeHTML(curso.getRequisitos())).append("</div>\n");
-        }
-
-        cursoHTML.append("</div>\n");
-
-        // ✅ CONTENEDOR DE BOTONES
-        cursoHTML.append("<div class=\"botones-container\">\n");
-
-        // Botón de Google Form (inscripción)
-        if (curso.getLinkGoogleForm() != null && !curso.getLinkGoogleForm().isEmpty()) {
-            cursoHTML.append("<a href=\"").append(escapeHTML(curso.getLinkGoogleForm()))
-                    .append("\" target=\"_blank\" class=\"boton-inscripcion\" title=\"Inscribirse en el curso: ")
-                    .append(escapeHTML(curso.getNombreCurso()))
-                    .append("\">")
-                    .append("📝 Inscribirse")
-                    .append("</a>\n");
-        }
-
-        // Botón de WhatsApp
-        String numeroWhatsApp = "+573127125150";
-        String mensajeWhatsApp = "Hola! Estoy interesado en el curso: " + escapeHTML(curso.getNombreCurso());
-        String enlaceWhatsApp = "https://wa.me/" + numeroWhatsApp.replace("+", "") + "?text="
-                + java.net.URLEncoder.encode(mensajeWhatsApp, "UTF-8");
-
-        cursoHTML.append("<a href=\"").append(enlaceWhatsApp)
-                .append("\" target=\"_blank\" class=\"boton-whatsapp\" title=\"Consultar por WhatsApp sobre: ")
-                .append(escapeHTML(curso.getNombreCurso()))
-                .append("\">")
-                .append("💬 Consultar")
-                .append("</a>\n");
-
-        cursoHTML.append("</div>\n"); // Cierre del contenedor de botones
-        cursoHTML.append("</div>\n"); // Cierre de la tarjeta
-
-        return cursoHTML.toString();
     }
 
     private String escapeHTML(String text) {
@@ -1420,35 +1406,32 @@ public class ControladorDashboardFundacion implements Initializable {
             alert.setContentText("¿Estás seguro de que quieres salir?");
 
             if (alert.showAndWait().get() == ButtonType.OK) {
-                // Cargar la pantalla de login
                 FXMLLoader loader = new FXMLLoader(getClass().getResource("/Vista/Login.fxml"));
                 Parent root = loader.load();
                 Stage stage = (Stage) lblUsuario.getScene().getWindow();
-                stage.setScene(new Scene(root));
-                stage.setTitle("Iniciar Sesión - Impulsa360");
-            }
 
+                stage.setMaximized(false);
+                stage.setResizable(false);
+                stage.setMinWidth(380);
+                stage.setMinHeight(435);
+                stage.setWidth(380);
+                stage.setHeight(435);
+                Scene scene = new Scene(root);
+                stage.setScene(scene);
+
+                stage.centerOnScreen();
+                stage.setTitle("Iniciar Sesión - Impulsa360");
+
+                Platform.runLater(() -> {
+                    stage.setWidth(380);
+                    stage.setHeight(435);
+                });
+            }
         } catch (Exception e) {
             mostrarAlerta("Error", "No se pudo cerrar la sesión: " + e.getMessage());
         }
     }
 
-    /* ------------------------------------------------------//--------------------------------------------------
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    PARTE PARA AUTOMATIZAR ACTUALIZACION DE GITHUB PAGES
-    ------------------------------------------------------//--------------------------------------------------
-     */
     @FXML
     private void instalarGit() {
         gestorGit.instalarGit();
@@ -1460,13 +1443,11 @@ public class ControladorDashboardFundacion implements Initializable {
             String rutaCatalogo = System.getProperty("user.home") + "/Desktop/catalogo_cursos_web";
             File carpetaCatalogo = new File(rutaCatalogo);
 
-            // ✅ CREAR CARPETA AUTOMÁTICAMENTE SI NO EXISTE
             if (!carpetaCatalogo.exists()) {
                 boolean creada = carpetaCatalogo.mkdirs();
                 if (creada) {
                     System.out.println("✅ Carpeta creada automáticamente: " + carpetaCatalogo.getAbsolutePath());
 
-                    // También crear subcarpeta de imágenes
                     File carpetaImagenes = new File(carpetaCatalogo, "imagenes_cursos");
                     carpetaImagenes.mkdirs();
 
@@ -1479,13 +1460,10 @@ public class ControladorDashboardFundacion implements Initializable {
                 }
             }
 
-            // ✅ VERIFICACIÓN SIMPLE COMO EN PRODUCTOS
             if (contenedorCatalogoVisual.getChildren().isEmpty()) {
                 mostrarAlerta("Error", "Primero genera el catálogo visual desde la pestaña 'Catálogo Visual'");
                 return;
             }
-
-            // ✅ GENERAR EL HTML Y LAS IMÁGENES
             File carpetaImagenes = new File(carpetaCatalogo, "imagenes_cursos");
             carpetaImagenes.mkdirs();
 
@@ -1493,7 +1471,6 @@ public class ControladorDashboardFundacion implements Initializable {
             File htmlFile = new File(carpetaCatalogo, "index.html");
             crearHTMLDelCatalogoCursos(htmlFile);
 
-            // ✅ PROCEDER CON EL DESPLIEGUE
             gestorGit.desplegarAGitHubPagesAsync(
                     getClass(),
                     carpetaCatalogo,
@@ -1515,9 +1492,440 @@ public class ControladorDashboardFundacion implements Initializable {
             e.printStackTrace();
         }
     }
-    
-    @FXML 
-    public void cargarInscripciones(){
-        //Hacer logica pa cargar isncripciones
+
+    private void configurarTablaInscripciones() {
+        inscripcionesData = FXCollections.observableArrayList();
+        tablaInscripciones.setItems(inscripcionesData);
+
+        tablaInscripciones.getSelectionModel().setSelectionMode(SelectionMode.SINGLE);
+
+        System.out.println("Tabla de inscripciones configurada");
     }
+
+    private void cargarInscripcionesDesdeBD() {
+        try {
+            inscripcionesData = ControladorBD.obtenerInscripciones();
+            tablaInscripciones.setItems(inscripcionesData);
+            tablaInscripciones.refresh();
+
+            actualizarContadorInscripciones();
+
+            System.out.println("Inscripciones cargadas desde BD: " + inscripcionesData.size());
+
+        } catch (Exception e) {
+            mostrarAlerta("Error", "No se pudieron cargar las inscripciones: " + e.getMessage());
+        }
+    }
+
+    private void procesarResultadosInscripciones(ObservableList<Inscripcion> nuevasInscripciones) {
+        try {
+            if (nuevasInscripciones.isEmpty()) {
+                mostrarAlerta("Información", "No hay nuevas inscripciones en Google Sheets");
+                actualizarContadorInscripciones();
+                return;
+            }
+
+            final int inscripcionesPrevias = inscripcionesData.size();
+
+            new Thread(() -> {
+                int nuevasGuardadas = 0;
+                int duplicadas = 0;
+
+                for (Inscripcion inscripcion : nuevasInscripciones) {
+                    if (ControladorBD.guardarInscripcion(inscripcion)) {
+                        nuevasGuardadas++;
+                    } else {
+                        duplicadas++;
+                    }
+                }
+
+                final int nuevasFinal = nuevasGuardadas;
+                final int duplicadasFinal = duplicadas;
+
+                Platform.runLater(() -> {
+                    cargarInscripcionesDesdeBD();
+
+                    String mensaje = String.format(
+                            "✅ Proceso completado:\n• Nuevas inscripciones: %d\n• Duplicadas (omitidas): %d\n• Total en sistema: %d",
+                            nuevasFinal, duplicadasFinal, inscripcionesData.size()
+                    );
+                    mostrarAlerta("Éxito", mensaje);
+
+                    actualizarContadorInscripciones();
+                });
+
+            }).start();
+
+        } catch (Exception e) {
+            mostrarAlerta("Error", "Error procesando datos: " + e.getMessage());
+        }
+    }
+
+    private void actualizarDesdeGoogleSheets() {
+        final String urlFinal = googleSheetUrl;
+        final ControladorGoogleSheets sheetsFinal = sheetsConnector;
+
+        if (urlFinal == null || urlFinal.isEmpty()) {
+            mostrarAlerta("Error", "No hay URL de Google Sheets configurada");
+            return;
+        }
+
+        Task<ObservableList<Inscripcion>> task = new Task<ObservableList<Inscripcion>>() {
+            @Override
+            protected ObservableList<Inscripcion> call() throws Exception {
+                updateMessage("🔄 Conectando con Google Sheets...");
+
+                return sheetsFinal.obtenerInscripcionesDesdeSheet(urlFinal);
+            }
+        };
+
+        task.setOnRunning(e -> {
+            lblEstadoURL.setText("🔄 Conectando...");
+        });
+
+        task.setOnSucceeded(e -> {
+            try {
+                ObservableList<Inscripcion> nuevasInscripciones = task.getValue();
+                procesarResultadosInscripciones(nuevasInscripciones);
+            } catch (Exception ex) {
+                mostrarAlerta("Error", "Error: " + ex.getMessage());
+            }
+        });
+
+        task.setOnFailed(e -> {
+            lblEstadoURL.setText("❌ Error");
+            mostrarAlerta("Error", "Falló la conexión: " + task.getException().getMessage());
+        });
+
+        Thread thread = new Thread(task);
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private void actualizarContadorInscripciones() {
+        if (lblEstadoURL != null) {
+            String estado = (googleSheetUrl != null && !googleSheetUrl.isEmpty()) ? "✅ " : "❌ ";
+            lblEstadoURL.setText(estado + "Inscripciones: " + inscripcionesData.size());
+        }
+    }
+
+    private void cargarURLGuardada() {
+        googleSheetUrl = ControladorBD.obtenerConfiguracion("google_sheet_url");
+        System.out.println("URL cargada de BD: " + googleSheetUrl);
+    }
+
+    private void pedirURLAlUsuario() {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("🔗 Configurar Google Sheets");
+        alert.setHeaderText("¡Bienvenido a la gestión de inscripciones!");
+        alert.setContentText("Para conectar con tus formularios de Google, necesitamos la URL de tu Google Sheet donde llegan las respuestas.\n\n¿Quieres configurarla ahora?");
+
+        ButtonType btnSi = new ButtonType("✅ Sí, configurar");
+        ButtonType btnMasTarde = new ButtonType("⏰ Más tarde");
+        ButtonType btnNo = new ButtonType("❌ No usar Google Sheets");
+
+        alert.getButtonTypes().setAll(btnSi, btnMasTarde, btnNo);
+
+        Optional<ButtonType> resultado = alert.showAndWait();
+        if (resultado.isPresent()) {
+            if (resultado.get() == btnSi) {
+                mostrarDialogoConfiguracionURL();
+            } else if (resultado.get() == btnNo) {
+                googleSheetUrl = null;
+                mostrarAlerta("Información",
+                        "Puedes configurar la URL más tarde desde el menú de configuración.");
+            }
+        }
+    }
+
+    private void mostrarDialogoConfiguracionURL() {
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle("🔗 Configurar Google Sheet");
+        dialog.setHeaderText("Pega la URL de tu Google Sheet");
+        dialog.setContentText("URL:");
+
+        dialog.getEditor().setPrefWidth(500);
+        dialog.getEditor().setPrefHeight(100);
+
+        Label ayuda = new Label("📝 Cómo obtener la URL:\n"
+                + "1. Ve a tu Google Sheet con las respuestas del Form\n"
+                + "2. Copia la URL de la barra de direcciones\n"
+                + "3. Pégala aquí\n\n"
+                + "Ejemplo: https://docs.google.com/spreadsheets/d/1ABC123.../edit");
+
+        ayuda.setStyle("-fx-text-fill: #666; -fx-font-size: 11px; -fx-padding: 10px;");
+        ayuda.setWrapText(true);
+
+        dialog.getDialogPane().setExpandableContent(ayuda);
+        dialog.getDialogPane().setExpanded(true);
+
+        Optional<String> resultado = dialog.showAndWait();
+        resultado.ifPresent(url -> {
+            if (validarURLGoogleSheets(url)) {
+                guardarURLEnBD(url);
+                mostrarAlerta("✅ Éxito", "URL configurada correctamente.\nAhora puedes cargar las inscripciones.");
+            } else {
+                mostrarAlerta("❌ Error",
+                        "La URL no parece ser de Google Sheets válida.\n"
+                        + "Por favor, verifica y intenta nuevamente.");
+                mostrarDialogoConfiguracionURL();
+            }
+        });
+    }
+
+    private boolean validarURLGoogleSheets(String url) {
+        if (url == null || url.trim().isEmpty()) {
+            return false;
+        }
+
+        return url.contains("docs.google.com/spreadsheets/d/")
+                && url.contains("/edit");
+    }
+
+    @FXML
+    public void cargarInscripciones() {
+        if (googleSheetUrl == null || googleSheetUrl.isEmpty()) {
+            int opcion = mostrarOpcionesSinURL();
+            if (opcion == 1) {
+                mostrarDialogoConfiguracionURL();
+                return;
+            } else if (opcion == 2) {
+                cargarInscripcionesDesdeBD();
+                return;
+            } else {
+                return;
+            }
+        }
+
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Actualizar Inscripciones");
+        alert.setHeaderText("¿Cómo quieres actualizar las inscripciones?");
+        alert.setContentText("URL configurada: " + acortarURL(googleSheetUrl));
+
+        ButtonType btnOnline = new ButtonType("🔄 Conectar a Google Sheets");
+        ButtonType btnOffline = new ButtonType("📋 Usar datos locales");
+        ButtonType btnConfig = new ButtonType("⚙ Cambiar URL");
+        ButtonType btnCancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        alert.getButtonTypes().setAll(btnOnline, btnOffline, btnConfig, btnCancelar);
+
+        Optional<ButtonType> resultado = alert.showAndWait();
+        if (resultado.isPresent()) {
+            if (resultado.get() == btnOnline) {
+                actualizarDesdeGoogleSheets();
+            } else if (resultado.get() == btnOffline) {
+                cargarInscripcionesDesdeBD();
+            } else if (resultado.get() == btnConfig) {
+                mostrarDialogoConfiguracionURL();
+            }
+        }
+    }
+
+    private int mostrarOpcionesSinURL() {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("URL no configurada");
+        alert.setHeaderText("No hay una URL de Google Sheets configurada");
+        alert.setContentText("¿Qué quieres hacer?");
+
+        ButtonType btnConfigurar = new ButtonType("🔗 Configurar URL");
+        ButtonType btnSoloLocal = new ButtonType("📋 Solo datos locales");
+        ButtonType btnCancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        alert.getButtonTypes().setAll(btnConfigurar, btnSoloLocal, btnCancelar);
+
+        Optional<ButtonType> resultado = alert.showAndWait();
+        if (resultado.isPresent()) {
+            if (resultado.get() == btnConfigurar) {
+                return 1;
+            }
+            if (resultado.get() == btnSoloLocal) {
+                return 2;
+            }
+        }
+        return 0;
+    }
+
+    private String acortarURL(String url) {
+        if (url.length() > 50) {
+            return url.substring(0, 47) + "...";
+        }
+        return url;
+    }
+
+    @FXML
+    private void configurarURL() {
+        mostrarDialogoConfiguracionURL();
+    }
+
+    @FXML
+    private void verURLActual() {
+        if (googleSheetUrl != null && !googleSheetUrl.isEmpty()) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("URL Configurada");
+            alert.setHeaderText("Google Sheet actual:");
+            alert.setContentText(googleSheetUrl);
+
+            ButtonType btnCopiar = new ButtonType("📋 Copiar URL");
+            ButtonType btnCerrar = new ButtonType("Cerrar", ButtonBar.ButtonData.CANCEL_CLOSE);
+            alert.getButtonTypes().setAll(btnCopiar, btnCerrar);
+
+            Optional<ButtonType> resultado = alert.showAndWait();
+            if (resultado.isPresent() && resultado.get() == btnCopiar) {
+                ClipboardContent content = new ClipboardContent();
+                content.putString(googleSheetUrl);
+                Clipboard.getSystemClipboard().setContent(content);
+                mostrarAlerta("Éxito", "URL copiada al portapapeles");
+            }
+        } else {
+            mostrarAlerta("Información", "No hay URL configurada actualmente");
+        }
+    }
+
+    private Inscripcion getInscripcionSeleccionada() {
+        Object seleccionado = tablaInscripciones.getSelectionModel().getSelectedItem();
+        if (seleccionado instanceof Inscripcion) {
+            return (Inscripcion) seleccionado;
+        }
+        return null;
+    }
+
+    @FXML
+    private void cambiarEstadoInscripcion() {
+        Inscripcion seleccionada = getInscripcionSeleccionada();
+        if (seleccionada != null) {
+            ChoiceDialog<String> dialog = new ChoiceDialog<>(seleccionada.getEstado(),
+                    "Pendiente", "Contactado", "Aprobado", "Rechazado", "Matriculado");
+            dialog.setTitle("Cambiar Estado");
+            dialog.setHeaderText("Inscripción de: " + seleccionada.getNombreEstudiante());
+            dialog.setContentText("Selecciona nuevo estado:");
+
+            Optional<String> resultado = dialog.showAndWait();
+            resultado.ifPresent(nuevoEstado -> {
+                if (ControladorBD.actualizarEstadoInscripcion(seleccionada.getId(), nuevoEstado)) {
+                    seleccionada.setEstado(nuevoEstado);
+                    tablaInscripciones.refresh();
+                    mostrarAlerta("✅ Éxito", "Estado actualizado a: " + nuevoEstado);
+                }
+            });
+        } else {
+            mostrarAlerta("❌ Error", "Selecciona una inscripción primero");
+        }
+    }
+
+    @FXML
+    private void exportarInscripcionesCSV() {
+        if (inscripcionesData.isEmpty()) {
+            mostrarAlerta("ℹ Información", "No hay inscripciones para exportar");
+            return;
+        }
+
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Exportar inscripciones a CSV");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV Files", "*.csv"));
+        fileChooser.setInitialFileName("inscripciones_" + java.time.LocalDate.now() + ".csv");
+
+        File file = fileChooser.showSaveDialog(null);
+        if (file != null) {
+            try (OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8)) {
+
+                writer.write('\uFEFF');
+
+                writer.write("Nombre;Edad;Identificación;Fecha Nacimiento;Curso;Fecha Inscripción;Estado\n");
+
+                for (Inscripcion inscripcion : inscripcionesData) {
+                    writer.write(String.format("%s;%d;%s;%s;%s;%s;%s%n",
+                            limpiarTexto(inscripcion.getNombreEstudiante()),
+                            inscripcion.getEdad(),
+                            limpiarTexto(inscripcion.getNumeroIdentificacion()),
+                            limpiarTexto(inscripcion.getFechaNacimientoFormateada()),
+                            limpiarTexto(inscripcion.getCursoSolicitado()),
+                            limpiarTexto(inscripcion.getFechaInscripcionFormateada()),
+                            limpiarTexto(inscripcion.getEstado())
+                    ));
+                }
+
+                mostrarAlerta("✅ Éxito", "Inscripciones exportadas correctamente a: " + file.getName());
+
+                abrirConExcel(file);
+
+            } catch (IOException e) {
+                mostrarAlerta("❌ Error", "No se pudo exportar el archivo: " + e.getMessage());
+            }
+        }
+    }
+
+    private String limpiarTexto(String texto) {
+        if (texto == null) {
+            return "";
+        }
+        if (texto.contains(";") || texto.contains("\"") || texto.contains("\n")) {
+            return "\"" + texto.replace("\"", "\"\"") + "\"";
+        }
+        return texto;
+    }
+
+    private void abrirConExcel(File archivo) {
+        try {
+            if (Desktop.isDesktopSupported()) {
+                Desktop desktop = Desktop.getDesktop();
+                if (desktop.isSupported(Desktop.Action.OPEN)) {
+                    desktop.open(archivo);
+                }
+            }
+        } catch (IOException e) {
+            System.out.println("No se pudo abrir automáticamente con Excel: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void probarConexion() {
+        if (googleSheetUrl == null || googleSheetUrl.isEmpty()) {
+            mostrarAlerta(" Error", "No hay URL configurada para probar");
+            return;
+        }
+
+        try {
+            mostrarAlerta(" Probando conexión", "Conectando a Google Sheets...");
+
+            ObservableList<Inscripcion> testData = sheetsConnector.obtenerInscripcionesDesdeSheet(googleSheetUrl);
+
+            if (!testData.isEmpty()) {
+                mostrarAlerta("Conexión exitosa",
+                        "Se encontraron " + testData.size() + " inscripciones en el Google Sheet.\n"
+                        + "¡La conexión está funcionando correctamente!");
+            } else {
+                mostrarAlerta("️Sin datos",
+                        "La conexión fue exitosa pero no se encontraron inscripciones.\n"
+                        + "¿El Google Sheet tiene datos?");
+            }
+
+        } catch (Exception e) {
+            mostrarAlerta("Error de conexión",
+                    "No se pudo conectar al Google Sheet:\n" + e.getMessage());
+        }
+    }
+
+    private void actualizarEstadoURL() {
+        if (lblEstadoURL != null) {
+            if (googleSheetUrl != null && !googleSheetUrl.isEmpty()) {
+                lblEstadoURL.setText("Conectado");
+                lblEstadoURL.setStyle("-fx-text-fill: #2e7d32; -fx-font-weight: bold;");
+            } else {
+                lblEstadoURL.setText("No configurado");
+                lblEstadoURL.setStyle("-fx-text-fill: #c62828; -fx-font-weight: bold;");
+            }
+        }
+    }
+
+    private void guardarURLEnBD(String url) {
+        boolean exito = ControladorBD.guardarConfiguracion("google_sheet_url", url);
+        if (exito) {
+            this.googleSheetUrl = url;
+            actualizarEstadoURL();
+            System.out.println("URL guardada en BD: " + url);
+        } else {
+            mostrarAlerta("Error", "No se pudo guardar la URL en la base de datos");
+        }
+    }
+
 }

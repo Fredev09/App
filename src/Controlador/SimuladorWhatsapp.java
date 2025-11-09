@@ -12,14 +12,13 @@ import javafx.application.Platform;
  */
 public class SimuladorWhatsapp {
     
+    /*
     private static ControladorDashboard dashboardInstance;
     
-    //MÉTODO PARA CONECTAR CON EL DASHBOARD
     public static void setDashboardInstance(ControladorDashboard dashboard) {
         dashboardInstance = dashboard;
     }
     
-    // SIMULAR CLIENTES QUE ESCRIBEN
     public static class ClienteSimulado {
         private String numero;
         private String nombre;
@@ -50,13 +49,11 @@ public class SimuladorWhatsapp {
         }
     }
     
-    // 🔥 CLIENTES PREDEFINIDOS PARA PRUEBAS RÁPIDAS
     public static final ClienteSimulado CLIENTE_1 = new ClienteSimulado("+573001234567", "María García");
     public static final ClienteSimulado CLIENTE_2 = new ClienteSimulado("+573009876543", "Carlos López");
     public static final ClienteSimulado CLIENTE_3 = new ClienteSimulado("+573005551234", "Ana Martínez");
     public static final ClienteSimulado CLIENTE_4 = new ClienteSimulado("+573004443210", "Pedro Rodríguez");
     
-    // 🔥 PROCESAR MENSAJES COMO SI VIENIERAN DE WHATSAPP REAL
     private static void procesarMensajeEntrante(String numeroCliente, String mensaje) {
         if (dashboardInstance != null) {
             // Ejecutar en el hilo de JavaFX
@@ -68,7 +65,6 @@ public class SimuladorWhatsapp {
         }
     }
     
-    // 🔥 MÉTODOS DE CONVENIENCIA PARA PRUEBAS RÁPIDAS
     public static void simularClientePideCatalogo() {
         CLIENTE_1.simularConsultaCatalogo();
     }
@@ -85,7 +81,6 @@ public class SimuladorWhatsapp {
         CLIENTE_4.simularMensajePersonalizado(mensaje);
     }
     
-    // 🔥 SIMULAR VARIOS CLIENTES AL MISMO TIEMPO (PARA PRUEBAS DE CARGA)
     public static void simularVariosClientes() {
         
         // Cliente 1 pide catálogo
@@ -104,7 +99,6 @@ public class SimuladorWhatsapp {
         CLIENTE_3.simularReserva(2, 1);
     }
     
-    // 🔥 VERIFICAR ESTADO DEL SIMULADOR
     public static String getEstado() {
         if (dashboardInstance != null) {
             return "✅ Conectado al Dashboard - Listo para simular";
@@ -113,7 +107,6 @@ public class SimuladorWhatsapp {
         }
     }
     
-    // 🔥 OBTENER INFORMACIÓN DE CLIENTES PREDEFINIDOS
     public static String getInfoClientes() {
         return "Clientes predefinidos:\n" +
                "1. " + CLIENTE_1.getNombre() + " - " + CLIENTE_1.getNumero() + "\n" +
@@ -121,4 +114,5 @@ public class SimuladorWhatsapp {
                "3. " + CLIENTE_3.getNombre() + " - " + CLIENTE_3.getNumero() + "\n" +
                "4. " + CLIENTE_4.getNombre() + " - " + CLIENTE_4.getNumero();
     }
+*/
 }

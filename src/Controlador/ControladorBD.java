@@ -4,10 +4,7 @@
  */
 package Controlador;
 
-import Modelo.Producto;
-import Modelo.Proyecto;
-import Modelo.Reserva;
-import Modelo.Usuario;
+import Modelo.*;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -15,6 +12,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.io.File;
+import java.time.LocalDate;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.scene.control.Alert;
@@ -33,7 +31,7 @@ public class ControladorBD {
     public static void initializeBD() {
         try {
             // Crear directorio si no existe
-            
+
             new File("database").mkdirs();
 
             Connection conn = getConnection();
@@ -103,33 +101,23 @@ public class ControladorBD {
         FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
     )
     """;
-            //por el momento no pq las inscripciones se manejan por forms
-            /*
-            String sqlInscripciones = """
-    CREATE TABLE IF NOT EXISTS inscripciones (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        proyecto_id INTEGER NOT NULL,
-        nombre_estudiante TEXT NOT NULL,
-        telefono TEXT NOT NULL,
-        email TEXT,
-        nivel TEXT,
-        interes TEXT,
-        estado TEXT DEFAULT 'Por contactar',
-        fecha_inscripcion DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (proyecto_id) REFERENCES proyectos (id)
-    )
-    """;
-*/
+
             Statement stmt = conn.createStatement();
             stmt.execute(sqlUsuarios);
             stmt.execute(sqlProductos);
             stmt.execute(sqlReservas);
             stmt.execute(sqlProyectos);
-            //stmt.execute(sqlInscripciones);
+            crearTablaInscripciones();
+            crearTablaConfiguracion();
 
             try {
                 String alterSql = "ALTER TABLE productos ADD COLUMN imagen_path TEXT";
                 stmt.execute(alterSql);
+            } catch (SQLException e) {
+            }
+            try {
+                String alterTelefono = "ALTER TABLE usuarios ADD COLUMN telefono TEXT";
+                stmt.execute(alterTelefono);
             } catch (SQLException e) {
             }
 
@@ -167,26 +155,21 @@ public class ControladorBD {
         return DriverManager.getConnection(URL);
     }
 
-    // Registrar nuevo usuario
     public static boolean registrarUsuario(Usuario usuario) {
-        String sql = "INSERT INTO usuarios (nombre_completo, correo, contrasena, tipo_usuario) VALUES (?, ?, ?, ?)";
+        String sql = "INSERT INTO usuarios (nombre_completo, correo, contrasena, tipo_usuario, telefono) VALUES (?, ?, ?, ?, ?)";
 
         try (Connection conn = getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
             pstmt.setString(1, usuario.getNombreCompleto());
             pstmt.setString(2, usuario.getCorreo());
             pstmt.setString(3, usuario.getContrasena());
             pstmt.setString(4, usuario.getTipoUsuario());
+            pstmt.setString(5, usuario.getTelefono());
 
             pstmt.executeUpdate();
             return true;
 
         } catch (SQLException e) {
-            if (e.getMessage().contains("UNIQUE constraint failed")) {
-                System.err.println("El correo ya está registrado");
-            } else {
-                System.err.println("Error registrando usuario: " + e.getMessage());
-            }
+            System.err.println("Error registrando usuario: " + e.getMessage());
             return false;
         }
     }
@@ -209,6 +192,8 @@ public class ControladorBD {
                 usuario.setCorreo(rs.getString("correo"));
                 usuario.setContrasena(rs.getString("contrasena"));
                 usuario.setTipoUsuario(rs.getString("tipo_usuario"));
+                usuario.setTelefono(rs.getString("telefono"));
+
                 return usuario;
             }
 
@@ -316,9 +301,7 @@ public class ControladorBD {
         }
     }
 
-    
-     //Obtener todos los productos de un usuario específico
-  
+    //Obtener todos los productos de un usuario específico
     public static ObservableList<Producto> obtenerProductosPorUsuario(int usuarioId) {
         ObservableList<Producto> productos = FXCollections.observableArrayList();
         String sql = "SELECT * FROM productos WHERE usuario_id = ? ORDER BY fecha_creacion DESC";
@@ -491,7 +474,7 @@ public class ControladorBD {
             pstmt.setDouble(4, producto.getPrecio());
             pstmt.setInt(5, producto.getCantidadDisponible());
             pstmt.setString(6, producto.getCategoria());
-            pstmt.setString(7, producto.getImagenPath()); 
+            pstmt.setString(7, producto.getImagenPath());
 
             pstmt.executeUpdate();
             return true;
@@ -519,9 +502,7 @@ public class ControladorBD {
         }
     }
 
-    
-     //Obtener producto por ID
-     
+    //Obtener producto por ID
     public static Producto obtenerProductoPorId(int productoId) {
         String sql = "SELECT * FROM productos WHERE id = ?";
 
@@ -579,8 +560,8 @@ public class ControladorBD {
             pstmt.setString(8, proyecto.getFechaInicio());
             pstmt.setString(9, proyecto.getFechaFin());
             pstmt.setString(10, proyecto.getLinkGoogleForm());
-            pstmt.setString(11, proyecto.getImagenPath());  
-            pstmt.setString(12, "Activo");  
+            pstmt.setString(11, proyecto.getImagenPath());
+            pstmt.setString(12, "Activo");
             pstmt.executeUpdate();
             return true;
 
@@ -623,7 +604,7 @@ public class ControladorBD {
         proyecto.setFechaInicio(rs.getString("fecha_inicio"));
         proyecto.setFechaFin(rs.getString("fecha_fin"));
         proyecto.setLinkGoogleForm(rs.getString("link_google_form"));
-        proyecto.setImagenPath(rs.getString("imagen_path"));  
+        proyecto.setImagenPath(rs.getString("imagen_path"));
         proyecto.setEstado(rs.getString("estado"));
         proyecto.setFechaCreacion(rs.getString("fecha_creacion"));
         return proyecto;
@@ -731,6 +712,279 @@ public class ControladorBD {
             System.err.println("Error actualizando proyecto: " + e.getMessage());
             return false;
         }
+    }
+
+    /**
+     * Crear tabla de inscripciones si no existe
+     */
+    public static void crearTablaInscripciones() {
+        System.out.println("🗑️ Eliminando y recreando tabla inscripciones...");
+
+        try (Connection conn = getConnection(); Statement stmt = conn.createStatement()) {
+            // 2. CREAR tabla NUEVA con estructura CORRECTA
+            String sqlInscripciones = """
+            CREATE TABLE IF NOT EXISTS inscripciones (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre_estudiante TEXT NOT NULL,
+                edad INTEGER DEFAULT 0,
+                numero_identificacion TEXT DEFAULT 'SIN_ID',
+                fecha_nacimiento TEXT DEFAULT '2000-01-01',
+                curso_solicitado TEXT DEFAULT 'Curso no especificado',
+                fecha_inscripcion TEXT DEFAULT CURRENT_DATE,
+                estado TEXT DEFAULT 'Pendiente',
+                proyecto_id INTEGER DEFAULT NULL,
+                fecha_importacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (proyecto_id) REFERENCES proyectos(id)
+            )
+            """;
+
+            stmt.execute(sqlInscripciones);
+            System.out.println("✅ Tabla inscripciones recreada con estructura correcta");
+
+        } catch (SQLException e) {
+            System.err.println("Error creando tabla inscripciones: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Verificar si una inscripción ya existe (para evitar duplicados)
+     */
+    public static boolean existeInscripcion(String numeroIdentificacion, String cursoSolicitado) {
+        String sql = "SELECT id FROM inscripciones WHERE numero_identificacion = ? AND curso_solicitado = ?";
+
+        try (Connection conn = getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, numeroIdentificacion);
+            pstmt.setString(2, cursoSolicitado);
+
+            ResultSet rs = pstmt.executeQuery();
+            return rs.next();
+
+        } catch (SQLException e) {
+            System.err.println("Error verificando inscripción: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Guardar inscripción con verificación de duplicados
+     */
+    public static boolean guardarInscripcion(Inscripcion inscripcion) {
+        // Verificar si ya existe
+        if (existeInscripcion(inscripcion.getNumeroIdentificacion(), inscripcion.getCursoSolicitado())) {
+            System.out.println("Inscripción duplicada, omitiendo: " + inscripcion.getNombreEstudiante());
+            return false;
+        }
+
+        // ✅ SIN teléfono - igual que antes
+        String sql = """
+        INSERT INTO inscripciones (nombre_estudiante, edad, numero_identificacion, 
+                                 fecha_nacimiento, curso_solicitado, fecha_inscripcion, 
+                                 estado, proyecto_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """;
+
+        try (Connection conn = getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, inscripcion.getNombreEstudiante());
+            pstmt.setInt(2, inscripcion.getEdad());
+            pstmt.setString(3, inscripcion.getNumeroIdentificacion());
+            pstmt.setString(4, inscripcion.getFechaNacimiento().toString());
+            pstmt.setString(5, inscripcion.getCursoSolicitado());
+            pstmt.setString(6, inscripcion.getFechaInscripcion().toString());
+            pstmt.setString(7, inscripcion.getEstado());
+            pstmt.setInt(8, inscripcion.getProyectoId());
+
+            return pstmt.executeUpdate() > 0;
+
+        } catch (SQLException e) {
+            System.err.println("Error guardando inscripción: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Obtener todas las inscripciones
+     */
+    public static ObservableList<Inscripcion> obtenerInscripciones() {
+        ObservableList<Inscripcion> inscripciones = FXCollections.observableArrayList();
+        String sql = "SELECT * FROM inscripciones ORDER BY fecha_importacion DESC, fecha_inscripcion DESC";
+
+        try (Connection conn = getConnection(); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+                Inscripcion inscripcion = mapearInscripcion(rs);
+                inscripciones.add(inscripcion);
+            }
+
+        } catch (SQLException e) {
+            System.err.println("Error obteniendo inscripciones: " + e.getMessage());
+        }
+
+        return inscripciones;
+    }
+
+    /**
+     * Obtener inscripciones por estado
+     */
+    public static ObservableList<Inscripcion> obtenerInscripcionesPorEstado(String estado) {
+        ObservableList<Inscripcion> inscripciones = FXCollections.observableArrayList();
+        String sql = "SELECT * FROM inscripciones WHERE estado = ? ORDER BY fecha_inscripcion DESC";
+
+        try (Connection conn = getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, estado);
+            ResultSet rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                Inscripcion inscripcion = mapearInscripcion(rs);
+                inscripciones.add(inscripcion);
+            }
+
+        } catch (SQLException e) {
+            System.err.println("Error obteniendo inscripciones por estado: " + e.getMessage());
+        }
+
+        return inscripciones;
+    }
+
+    /**
+     * Actualizar estado de una inscripción
+     */
+    public static boolean actualizarEstadoInscripcion(int inscripcionId, String nuevoEstado) {
+        String sql = "UPDATE inscripciones SET estado = ? WHERE id = ?";
+
+        try (Connection conn = getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, nuevoEstado);
+            pstmt.setInt(2, inscripcionId);
+
+            return pstmt.executeUpdate() > 0;
+
+        } catch (SQLException e) {
+            System.err.println("Error actualizando estado de inscripción: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Mapear ResultSet a Inscripcion
+     */
+    private static Inscripcion mapearInscripcion(ResultSet rs) throws SQLException {
+        Inscripcion inscripcion = new Inscripcion();
+        inscripcion.setId(rs.getInt("id"));
+        inscripcion.setNombreEstudiante(rs.getString("nombre_estudiante"));
+        inscripcion.setEdad(rs.getInt("edad"));
+        inscripcion.setNumeroIdentificacion(rs.getString("numero_identificacion"));
+
+        // Parsear fechas
+        String fechaNacimientoStr = rs.getString("fecha_nacimiento");
+        if (fechaNacimientoStr != null) {
+            try {
+                inscripcion.setFechaNacimiento(LocalDate.parse(fechaNacimientoStr));
+            } catch (Exception e) {
+                System.err.println("Error parseando fecha nacimiento: " + fechaNacimientoStr);
+            }
+        }
+
+        inscripcion.setCursoSolicitado(rs.getString("curso_solicitado"));
+
+        String fechaInscripcionStr = rs.getString("fecha_inscripcion");
+        if (fechaInscripcionStr != null) {
+            try {
+                inscripcion.setFechaInscripcion(LocalDate.parse(fechaInscripcionStr));
+            } catch (Exception e) {
+                System.err.println("Error parseando fecha inscripción: " + fechaInscripcionStr);
+            }
+        }
+
+        inscripcion.setEstado(rs.getString("estado"));
+        inscripcion.setProyectoId(rs.getInt("proyecto_id"));
+
+        return inscripcion;
+    }
+
+    public static void crearTablaConfiguracion() {
+        String sqlConfig = """
+        CREATE TABLE IF NOT EXISTS configuracion (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            clave TEXT UNIQUE NOT NULL,
+            valor TEXT,
+            fecha_actualizacion DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        """;
+
+        try (Connection conn = getConnection(); Statement stmt = conn.createStatement()) {
+            stmt.execute(sqlConfig);
+        } catch (SQLException e) {
+            System.err.println("Error creando tabla configuración: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Guardar configuración en BD
+     */
+    public static boolean guardarConfiguracion(String clave, String valor) {
+        String sql = """
+        INSERT OR REPLACE INTO configuracion (clave, valor) 
+        VALUES (?, ?)
+        """;
+
+        try (Connection conn = getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, clave);
+            pstmt.setString(2, valor);
+
+            return pstmt.executeUpdate() > 0;
+
+        } catch (SQLException e) {
+            System.err.println("Error guardando configuración: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Obtener configuración de BD
+     */
+    public static String obtenerConfiguracion(String clave) {
+        String sql = "SELECT valor FROM configuracion WHERE clave = ?";
+
+        try (Connection conn = getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, clave);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                return rs.getString("valor");
+            }
+
+        } catch (SQLException e) {
+            System.err.println("Error obteniendo configuración: " + e.getMessage());
+        }
+
+        return null;
+    }
+
+    /**
+     * Obtener proyecto ID por nombre del curso - FALTANTE
+     */
+    public static Integer obtenerProyectoIdPorNombre(String nombreCurso) {
+        String sql = "SELECT id FROM proyectos WHERE nombre = ?";
+
+        try (Connection conn = getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, nombreCurso);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                return rs.getInt("id");
+            }
+
+        } catch (SQLException e) {
+            System.err.println("Error obteniendo proyecto ID: " + e.getMessage());
+        }
+
+        return null;
     }
 
 }

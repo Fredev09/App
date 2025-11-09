@@ -6,6 +6,7 @@ package Controlador;
 
 import Modelo.Usuario;
 import java.io.IOException;
+import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -40,6 +41,8 @@ public class ControladorRegistro {
     private TextField txtContrasenaVisible;
     @FXML
     private TextField txtConfirmarContrasenaVisible;
+    @FXML
+    private TextField txtTelefono;
 
     // Botones de mostrar/ocultar contraseña
     @FXML
@@ -89,13 +92,23 @@ public class ControladorRegistro {
 
             // Obtener el Stage de forma segura
             Stage currentStage = (Stage) btnRegistrar.getScene().getWindow();
-
             // Crear nuevo Stage si el anterior es null
             Stage stage = currentStage != null ? currentStage : new Stage();
+            stage.setMaximized(false);
+            stage.setResizable(false);
+            stage.setMinWidth(380);
+            stage.setMinHeight(435);
+            stage.setWidth(380);
+            stage.setHeight(435);
 
             stage.setScene(new Scene(root));
+            stage.centerOnScreen();
             stage.setTitle("Iniciar sesión");
             stage.show();
+
+            Platform.runLater(() -> {
+                stage.sizeToScene();
+            });
 
         } catch (IOException ex) {
             ex.printStackTrace();
@@ -123,6 +136,7 @@ public class ControladorRegistro {
         String contrasena = txtContrasena.getText();
         String confirmar = txtConfirmarContrasena.getText();
         String tipo = cmbTipoUsuario.getValue();
+        String telefono = txtTelefono.getText();
 
         if (nombre.isEmpty() || correo.isEmpty() || contrasena.isEmpty() || confirmar.isEmpty() || tipo == null) {
             mostrarAlerta("Llene todos los campos", "Debe llenar todos los campos ",
@@ -147,7 +161,7 @@ public class ControladorRegistro {
             mostrarAlerta("Contraseñas no coinciden", "Las contraseñas no coinciden", Alert.AlertType.WARNING);
             return;
         }
-        Usuario usuario = new Usuario(nombre, correo, contrasena, tipo);
+        Usuario usuario = new Usuario(nombre, correo, contrasena, tipo, telefono);
         boolean registrar = ControladorBD.registrarUsuario(usuario);
 
         if (registrar) {

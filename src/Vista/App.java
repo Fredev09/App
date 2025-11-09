@@ -7,6 +7,7 @@ package Vista;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
+import javafx.scene.image.Image;
 import javafx.stage.Stage;
 
 /**
@@ -17,11 +18,20 @@ public class App extends Application {
 
     @Override
     public void start(Stage stage) throws Exception {
+        Image icono = new Image(
+        getClass().getResourceAsStream("icono.png"),
+        32,  
+        32,  
+        true, 
+        true  
+    );
+    stage.getIcons().add(icono);
+        
         FXMLLoader loader = new FXMLLoader(getClass().getResource("/Vista/Login.fxml"));
         Scene scene = new Scene(loader.load());
-        stage.setTitle("Inicio de Sesion");
+        stage.setTitle("Login");
         stage.setScene(scene);
-       // stage.setResizable(false);
+        stage.setResizable(false);
         stage.show();
     }
 

@@ -611,38 +611,27 @@
     -fx-border-color: -fx-border-light;
 }
 
-/* ==========================
-   BOTÓN GITHUB (mantengo tus variantes)
-   ========================== */
-/* Botones de Git/GitHub con estilos más detallados (mantengo tu version) */
 .btn-git {
-    -fx-background-color: #f05033;
+    -fx-background-color: linear-gradient(to bottom, #f05133, #e34f26);
     -fx-text-fill: white;
     -fx-font-weight: bold;
-    -fx-background-radius: 6;
-    -fx-padding: 8 14 8 14;
-}
-.btn-git:hover {
-    -fx-background-color: #e03520;
-    cursor: hand;
-}
-.btn-git:pressed {
-    -fx-background-color: #c42c1a;
-}
-/* btn-git simple */
-.btn-git {
-    -fx-background-color: #f05033;
-    -fx-text-fill: white;
-    -fx-font-weight: bold;
-    -fx-background-radius: 5;
-    -fx-padding: 8 15 8 15;
-}
-.btn-git:hover {
-    -fx-background-color: #e03520;
+    -fx-background-radius: 8;
     -fx-cursor: hand;
+    -fx-font-size: 14px;
+    -fx-padding: 8 12 8 12;
+    -fx-effect: dropshadow(gaussian, rgba(240, 81, 51, 0.3), 8, 0, 0, 2);
 }
+
+.btn-git:hover {
+    -fx-background-color: linear-gradient(to bottom, #e34f26, #d4431f);
+    -fx-effect: dropshadow(gaussian, rgba(240, 81, 51, 0.4), 12, 0, 0, 4);
+    -fx-translate-y: -1px;
+}
+
 .btn-git:pressed {
-    -fx-background-color: #c42c1a;
+    -fx-background-color: linear-gradient(to bottom, #d4431f, #c23819);
+    -fx-effect: dropshadow(gaussian, rgba(240, 81, 51, 0.2), 4, 0, 0, 1);
+    -fx-translate-y: 0px;
 }
 
 /* ==========================
@@ -1042,4 +1031,268 @@
     -fx-background-color: #3c3c3c;
 }
 
+/* Agregar estos estilos a tu CSS */
+.btn-warning {
+    -fx-background-color: #ff9800;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+}
 
+.btn-warning:hover {
+    -fx-background-color: #f57c00;
+}
+
+.btn-info {
+    -fx-background-color: #2196f3;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+}
+
+.btn-info:hover {
+    -fx-background-color: #1976d2;
+}
+
+.btn-github {
+    /* Solo propiedades básicas que no interfieran */
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+    -fx-cursor: hand;
+    -fx-padding: 8 12 8 12;
+
+    /* El fondo y borde los controla Java */
+}
+
+.btn-github:hover {
+    -fx-scale-x: 1.03;
+    -fx-scale-y: 1.03;
+    -fx-effect: dropshadow(gaussian, rgba(255, 255, 255, 0.2), 15, 0.8, 0, 0);
+}
+
+.btn-github:pressed {
+    -fx-scale-x: 0.97;
+    -fx-scale-y: 0.97;
+    -fx-effect: dropshadow(gaussian, rgba(255, 255, 255, 0.1), 8, 0.6, 0, 0);
+}
+
+/* Botón Cambiar Estado (Warning) */
+.btn-warning {
+    -fx-background-color: #f59e0b;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8;
+    -fx-cursor: hand;
+    -fx-font-size: 14px;
+    -fx-padding: 8 12 8 12;
+    -fx-effect: dropshadow(gaussian, rgba(245, 158, 11, 0.3), 8, 0, 0, 2);
+}
+
+.btn-warning:hover {
+    -fx-background-color: #d97706;
+    -fx-effect: dropshadow(gaussian, rgba(245, 158, 11, 0.4), 12, 0, 0, 4);
+    -fx-translate-y: -1px;
+}
+
+.btn-warning:pressed {
+    -fx-background-color: #b45309;
+    -fx-effect: dropshadow(gaussian, rgba(245, 158, 11, 0.2), 4, 0, 0, 1);
+    -fx-translate-y: 0px;
+}
+
+.theme-dark .btn-warning {
+    -fx-effect: dropshadow(gaussian, rgba(245, 158, 11, 0.15), 6, 0, 0, 2);
+}
+
+/* Botón Configurar (Secondary) */
+.btn-secondary {
+    -fx-background-color: #64748b;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8;
+    -fx-cursor: hand;
+    -fx-font-size: 14px;
+    -fx-padding: 8 12 8 12;
+    -fx-effect: dropshadow(gaussian, rgba(100, 116, 139, 0.2), 6, 0, 0, 2);
+}
+
+.btn-secondary:hover {
+    -fx-background-color: #475569;
+    -fx-effect: dropshadow(gaussian, rgba(100, 116, 139, 0.3), 8, 0, 0, 3);
+    -fx-translate-y: -1px;
+}
+
+.btn-secondary:pressed {
+    -fx-background-color: #374151;
+    -fx-effect: dropshadow(gaussian, rgba(100, 116, 139, 0.1), 4, 0, 0, 1);
+    -fx-translate-y: 0px;
+}
+
+.theme-dark .btn-secondary {
+    -fx-background-color: #4b5563;
+    -fx-effect: dropshadow(gaussian, rgba(100, 116, 139, 0.1), 6, 0, 0, 2);
+}
+
+.theme-dark .btn-secondary:hover {
+    -fx-background-color: #6b7280;
+}
+
+/* Botón Probar Conexión (Info) */
+.btn-info {
+    -fx-background-color: #06b6d4;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8;
+    -fx-cursor: hand;
+    -fx-font-size: 14px;
+    -fx-padding: 8 12 8 12;
+    -fx-effect: dropshadow(gaussian, rgba(6, 182, 212, 0.3), 8, 0, 0, 2);
+}
+
+.btn-info:hover {
+    -fx-background-color: #0891b2;
+    -fx-effect: dropshadow(gaussian, rgba(6, 182, 212, 0.4), 12, 0, 0, 4);
+    -fx-translate-y: -1px;
+}
+
+.btn-info:pressed {
+    -fx-background-color: #0e7490;
+    -fx-effect: dropshadow(gaussian, rgba(6, 182, 212, 0.2), 4, 0, 0, 1);
+    -fx-translate-y: 0px;
+}
+
+.theme-dark .btn-info {
+    -fx-effect: dropshadow(gaussian, rgba(6, 182, 212, 0.15), 6, 0, 0, 2);
+}
+
+/* Botón Ver URL (Success) */
+.btn-success {
+    -fx-background-color: #10b981;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8;
+    -fx-cursor: hand;
+    -fx-font-size: 14px;
+    -fx-padding: 8 12 8 12;
+    -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.3), 8, 0, 0, 2);
+}
+
+.btn-success:hover {
+    -fx-background-color: #059669;
+    -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.4), 12, 0, 0, 4);
+    -fx-translate-y: -1px;
+}
+
+.btn-success:pressed {
+    -fx-background-color: #047857;
+    -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.2), 4, 0, 0, 1);
+    -fx-translate-y: 0px;
+}
+
+.theme-dark .btn-success {
+    -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.15), 6, 0, 0, 2);
+}
+
+/* ==========================
+   ESTILOS PARA DATEPICKER (Fecha inicio y fin)
+   ========================== */
+.date-picker {
+    -fx-background-color: -fx-bg-input;
+    -fx-border-color: -fx-border-light;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-padding: 8px 12px;
+    -fx-font-size: 14px;
+    -fx-text-fill: -fx-text-main;
+}
+
+.date-picker:focused {
+    -fx-border-color: -fx-border-focus;
+    -fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.12), 6, 0.2, 0, 1);
+    -fx-border-width: 2px;
+}
+
+.date-picker:hover {
+    -fx-border-color: #d1d5db;
+    -fx-background-color: white;
+}
+
+/* Estilo para el campo de texto interno del DatePicker */
+.date-picker .text-field {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+    -fx-text-fill: -fx-text-main;
+}
+
+/* Estilo para el botón del calendario */
+.date-picker .arrow-button {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-background-radius: 0 6px 6px 0;
+}
+
+.date-picker .arrow-button:hover {
+    -fx-background-color: #f3f4f6;
+}
+
+/* Estilo para el popup del calendario */
+.date-picker-popup {
+    -fx-background-color: white;
+    -fx-border-color: #e5e7eb;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.1), 10, 0, 0, 2);
+}
+
+/* Estilo para los días del calendario */
+.date-picker-popup .month-year-pane {
+    -fx-background-color: #f8fafc;
+}
+
+.date-picker-popup .day-cell {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: #1f2937;
+}
+
+.date-picker-popup .day-cell:hover {
+    -fx-background-color: #f3f4f6;
+}
+
+.date-picker-popup .day-cell:selected {
+    -fx-background-color: -fx-primary;
+    -fx-text-fill: white;
+}
+
+/* ===== MODO OSCURO PARA DATEPICKER ===== */
+.theme-dark .date-picker {
+    -fx-background-color: -fx-bg-input;
+    -fx-border-color: -fx-border-light;
+    -fx-text-fill: -fx-text-secondary;
+}
+
+.theme-dark .date-picker .text-field {
+    -fx-text-fill: -fx-text-secondary;
+}
+
+.theme-dark .date-picker-popup {
+    -fx-background-color: -fx-surface-2;
+    -fx-border-color: -fx-border-light;
+}
+
+.theme-dark .date-picker-popup .month-year-pane {
+    -fx-background-color: rgba(255, 255, 255, 0.03);
+}
+
+.theme-dark .date-picker-popup .day-cell {
+    -fx-text-fill: -fx-text-secondary;
+}
+
+.theme-dark .date-picker-popup .day-cell:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.05);
+}
+
+.theme-dark .date-picker-popup .day-cell:selected {
+    -fx-background-color: -fx-primary;
+    -fx-text-fill: white;
+}
