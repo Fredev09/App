@@ -18,7 +18,7 @@
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
 
-<BorderPane fx:id="root" prefHeight="762.0" prefWidth="731.0" stylesheets="@styles.css" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="Controlador.ControladorDashboard">
+<BorderPane fx:id="root" prefHeight="762.0" prefWidth="878.0" stylesheets="@styles.css" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="Controlador.ControladorDashboard">
     
     <top>
         <VBox spacing="10" styleClass="header">
@@ -29,8 +29,8 @@
                 <Label styleClass="header-title" text="🏪 Impulsa360" />
                 <Label fx:id="lblUsuario" styleClass="header-subtitle" />
                 <Region HBox.hgrow="ALWAYS" />
+                <ToggleButton layoutX="10" layoutY="10" onAction="#editarDatosUsuario" styleClass="btn-secondary" stylesheets="@styles.css" text="👤 Editar Datos" />
                 <Button onAction="#cerrarSesion" styleClass="btn-logout" text="Cerrar Sesión" />
-                <ToggleButton fx:id="btnTema" layoutX="10" layoutY="10" styleClass="switch-tema" text="🌙" />
             </HBox>
             <Separator />
         </VBox>
@@ -43,6 +43,7 @@
                 <VBox spacing="15" style="-fx-padding: 20;" VBox.vgrow="ALWAYS">
                     <HBox alignment="CENTER_LEFT" spacing="10">
                         <Label style="-fx-font-weight: bold; -fx-font-size: 16;" text="GESTIÓN DE PRODUCTOS" />
+                  <TextField fx:id="txtBuscar" prefHeight="38.0" prefWidth="596.0" promptText="🔍 Buscar productos..." translateX="100.0" />
                         <Region HBox.hgrow="ALWAYS" />
                         <Button fx:id="btnAgregar" onAction="#mostrarFormularioProducto" styleClass="btn-primary" text="➕ Agregar Producto" />
                     </HBox>
@@ -76,7 +77,9 @@
                     </TableView>
                     
                     <!-- Botones de acción -->
-                    <HBox alignment="CENTER_RIGHT" spacing="10">
+                    <HBox alignment="CENTER_RIGHT" prefHeight="36.0" prefWidth="838.0" spacing="10">
+                  <Button mnemonicParsing="false" onAction="#verHistoricoProducto" styleClass="btn-historial" text="⏪ Ver Historial Producto" />
+                  <Button mnemonicParsing="false" onAction="#generarReporteInventario" styleClass="btn-reporte" text="📈 Ver Reporte" />
                         <Button fx:id="btnEditar" onAction="#editarProducto" styleClass="btn-primary" text="✏ Editar Producto Seleccionado" />
                         <Button fx:id="btnEliminar" onAction="#eliminarProducto" styleClass="btn-danger" text="🗑 Eliminar Producto Seleccionado" />
                     </HBox>

@@ -29,6 +29,7 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.ResourceBundle;
 import javafx.animation.AnimationTimer;
@@ -263,7 +264,7 @@ public class ControladorDashboardFundacion implements Initializable {
                 duracion = "No aplica";
             }
 
-            int cupos = 0; 
+            int cupos = 0;
             if (!cuposText.isEmpty()) {
                 try {
                     cupos = Integer.parseInt(cuposText);
@@ -843,10 +844,7 @@ public class ControladorDashboardFundacion implements Initializable {
             File carpetaImagenes = new File(carpetaWeb, "imagenes_cursos");
             carpetaImagenes.mkdirs();
 
-            System.out.println("=== INICIANDO EXPORTACIÓN DE CURSOS ===");
             int totalImagenes = copiarImagenesDeCursos(carpetaImagenes);
-            System.out.println("Imágenes de cursos procesadas: " + totalImagenes);
-
             File htmlFile = new File(carpetaWeb, "index.html");
             crearHTMLDelCatalogoCursos(htmlFile);
 
@@ -865,25 +863,19 @@ public class ControladorDashboardFundacion implements Initializable {
 
     private ImageView obtenerImageViewDeTarjetaCurso(VBox tarjeta) {
         try {
-            System.out.println("=== BUSCANDO IMAGEVIEW DE CURSO ===");
-            System.out.println("Número de hijos en tarjeta: " + tarjeta.getChildren().size());
-
             int contador = 0;
             for (javafx.scene.Node node : tarjeta.getChildren()) {
                 System.out.println("Hijo " + contador + ": " + node.getClass().getSimpleName());
                 if (node instanceof ImageView) {
                     ImageView imageView = (ImageView) node;
-                    System.out.println("✅ ImageView encontrado - Imagen: " + (imageView.getImage() != null));
                     return imageView;
                 }
                 contador++;
             }
 
-            System.out.println("❌ No se encontró ImageView en la tarjeta de curso");
             return null;
 
         } catch (Exception e) {
-            System.err.println("❌ Error obteniendo ImageView de curso: " + e.getMessage());
             return null;
         }
     }
@@ -893,9 +885,6 @@ public class ControladorDashboardFundacion implements Initializable {
         int imagenesCopiadas = 0;
 
         try {
-            System.out.println("=== COPIANDO IMÁGENES DE CURSOS ===");
-            System.out.println("Carpeta destino: " + carpetaImagenes.getAbsolutePath());
-
             for (javafx.scene.Node node : contenedorCatalogoVisual.getChildren()) {
                 if (node instanceof GridPane) {
                     GridPane grid = (GridPane) node;
@@ -903,9 +892,6 @@ public class ControladorDashboardFundacion implements Initializable {
                         if (child instanceof VBox) {
                             VBox tarjeta = (VBox) child;
                             ImageView imageView = obtenerImageViewDeTarjetaCurso(tarjeta);
-
-                            System.out.println("Procesando curso " + numero + " - ImageView: " + (imageView != null));
-                            System.out.println("Tiene imagen: " + (imageView != null && imageView.getImage() != null));
 
                             if (imageView != null && imageView.getImage() != null) {
                                 try {
@@ -926,23 +912,19 @@ public class ControladorDashboardFundacion implements Initializable {
                                     File imagenDestino = new File(carpetaImagenes, "curso" + numero + ".jpg");
                                     javax.imageio.ImageIO.write(nuevaImagen, "jpg", imagenDestino);
 
-                                    System.out.println("✅ Imagen guardada: " + imagenDestino.getName());
                                     imagenesCopiadas++;
 
                                 } catch (Exception e) {
-                                    System.err.println("❌ Error copiando imagen curso " + numero + ": " + e.getMessage());
+                                    System.err.println("Error copiando imagen curso " + numero + ": " + e.getMessage());
                                     try {
                                         java.awt.image.BufferedImage bufferedImage = SwingFXUtils.fromFXImage(imageView.getImage(), null);
                                         File imagenDestino = new File(carpetaImagenes, "curso" + numero + ".jpg");
                                         javax.imageio.ImageIO.write(bufferedImage, "jpg", imagenDestino);
                                         imagenesCopiadas++;
-                                        System.out.println("✅ Imagen guardada (fallback): " + imagenDestino.getName());
                                     } catch (Exception ex) {
-                                        System.err.println("❌ Fallback también falló: " + ex.getMessage());
+                                        System.err.println("error: " + ex.getMessage());
                                     }
                                 }
-                            } else {
-                                System.out.println("❌ Curso " + numero + " no tiene imagen");
                             }
                             numero++;
                         }
@@ -950,10 +932,8 @@ public class ControladorDashboardFundacion implements Initializable {
                 }
             }
 
-            System.out.println("=== TOTAL IMÁGENES DE CURSOS COPIADAS: " + imagenesCopiadas + " ===");
-
         } catch (Exception e) {
-            System.err.println("❌ Error general procesando tarjetas de cursos: " + e.getMessage());
+            System.err.println("Error procesando tarjetas de cursos: " + e.getMessage());
         }
 
         return imagenesCopiadas;
@@ -1275,50 +1255,64 @@ public class ControladorDashboardFundacion implements Initializable {
             StringBuilder cursoHTML = new StringBuilder();
             cursoHTML.append("<div class=\"curso-card\">\n");
 
-            String nombreCurso = "Curso";
-            String categoria = "Categoría";
-            String duracion = "Duración";
-            String cupos = "0 cupos";
-            String fechas = "Fechas";
-            String descripcion = "Descripción";
-            String requisitos = "Requisitos";
+            // EXTRAER NOMBRE DEL CURSO DE FORMA MÁS PRECISA
+            String nombreCurso = "Curso " + numero;
 
+            // Buscar en todos los nodos de la tarjeta
             for (javafx.scene.Node node : tarjetaCurso.getChildren()) {
                 if (node instanceof Label) {
                     Label label = (Label) node;
                     String texto = label.getText();
-                    if (texto != null) {
-                        if (texto.startsWith("🎓")) {
-                            nombreCurso = texto.substring(2).trim();
-                        } else if (texto.startsWith("📚")) {
-                            categoria = texto.substring(2).trim();
-                        } else if (texto.startsWith("⏱")) {
-                            duracion = texto.substring(2).trim();
-                        } else if (texto.startsWith("👥")) {
-                            cupos = texto.substring(2).trim();
-                        } else if (texto.startsWith("📅")) {
-                            fechas = texto.substring(2).trim();
-                        } else if (texto.startsWith("🎯")) {
-                            requisitos = texto.substring(2).trim();
+                    if (texto != null && !texto.isEmpty()) {
+                        // El nombre del curso es generalmente el primer Label que no tiene emojis
+                        if (!texto.startsWith("🏷️") && !texto.startsWith("⏱")
+                                && !texto.startsWith("📦") && !texto.startsWith("📅")
+                                && !texto.startsWith("🎯") && !texto.contains("Cupos:")
+                                && !texto.contains("Precio:")) {
+                            nombreCurso = texto.trim();
+                            break; // Tomamos el primer label que cumple
                         }
                     }
                 }
             }
 
+            System.out.println("🔄 Procesando curso: " + nombreCurso);
+
+            // BUSCAR EL CURSO EN LOS DATOS ORIGINALES
+            String linkGoogleForm = null;
+            Proyecto cursoEncontrado = null;
+
+            if (cursosData != null) {
+                for (Proyecto curso : cursosData) {
+                    if (curso != null && curso.getNombreCurso() != null) {
+                        // Comparación más flexible
+                        if (curso.getNombreCurso().equals(nombreCurso)
+                                || nombreCurso.contains(curso.getNombreCurso())
+                                || curso.getNombreCurso().contains(nombreCurso)) {
+
+                            cursoEncontrado = curso;
+                            linkGoogleForm = curso.getLinkGoogleForm();
+                            System.out.println("✅ CURSO ENCONTRADO: " + curso.getNombreCurso());
+                            System.out.println("🔗 LINK: " + linkGoogleForm);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Si no se encuentra, intentar con el primer curso disponible
+            if (cursoEncontrado == null && !cursosData.isEmpty()) {
+                cursoEncontrado = cursosData.get(0);
+                linkGoogleForm = cursoEncontrado.getLinkGoogleForm();
+                System.out.println("⚠️ Usando primer curso disponible: " + cursoEncontrado.getNombreCurso());
+            }
+
+            // IMAGEN DEL CURSO
             ImageView imageView = null;
             for (javafx.scene.Node node : tarjetaCurso.getChildren()) {
                 if (node instanceof ImageView) {
                     imageView = (ImageView) node;
                     break;
-                }
-                if (node instanceof HBox) {
-                    HBox hbox = (HBox) node;
-                    for (javafx.scene.Node child : hbox.getChildren()) {
-                        if (child instanceof ImageView) {
-                            imageView = (ImageView) child;
-                            break;
-                        }
-                    }
                 }
             }
 
@@ -1338,51 +1332,143 @@ public class ControladorDashboardFundacion implements Initializable {
                 cursoHTML.append("</div>\n");
             }
 
+            // INFORMACIÓN DEL CURSO (usar datos reales si están disponibles)
             cursoHTML.append("<div class=\"curso-info\">\n");
             cursoHTML.append("<div class=\"curso-nombre\">").append(numero).append(". ").append(escapeHTML(nombreCurso)).append("</div>\n");
-            cursoHTML.append("<div class=\"curso-categoria\">📚 ").append(escapeHTML(categoria)).append("</div>\n");
-            cursoHTML.append("<div class=\"curso-duracion\">⏱ ").append(escapeHTML(duracion)).append("</div>\n");
-            cursoHTML.append("<div class=\"curso-cupos\">👥 ").append(escapeHTML(cupos)).append("</div>\n");
-            cursoHTML.append("<div class=\"curso-fechas\">📅 ").append(escapeHTML(fechas)).append("</div>\n");
 
-            if (!descripcion.equals("Descripción")) {
-                cursoHTML.append("<div class=\"curso-descripcion\">📝 ").append(escapeHTML(descripcion)).append("</div>\n");
-            }
+            if (cursoEncontrado != null) {
+                // Usar datos reales del curso - SOLO MOSTRAR CAMPOS QUE TENGAN CONTENIDO
+                cursoHTML.append("<div class=\"curso-categoria\">📚 ").append(escapeHTML(cursoEncontrado.getCategoriaCurso())).append("</div>\n");
 
-            if (!requisitos.equals("Requisitos")) {
-                cursoHTML.append("<div class=\"curso-requisitos\">🎯 ").append(escapeHTML(requisitos)).append("</div>\n");
+                // SOLO mostrar duración si no está vacía y no es "No aplica"
+                if (cursoEncontrado.getDuracion() != null
+                        && !cursoEncontrado.getDuracion().trim().isEmpty()
+                        && !cursoEncontrado.getDuracion().equals("No aplica")) {
+                    cursoHTML.append("<div class=\"curso-duracion\">⏱ ").append(escapeHTML(cursoEncontrado.getDuracion())).append("</div>\n");
+                }
+
+                // SOLO mostrar cupos si son mayores a 0
+                if (cursoEncontrado.getCuposDisponibles() > 0) {
+                    cursoHTML.append("<div class=\"curso-cupos\">👥 ").append(cursoEncontrado.getCuposDisponibles()).append(" cupos disponibles</div>\n");
+                }
+
+                // SOLO mostrar fechas si ambas están presentes y no están vacías
+                if (cursoEncontrado.getFechaInicio() != null
+                        && !cursoEncontrado.getFechaInicio().trim().isEmpty()
+                        && cursoEncontrado.getFechaFin() != null
+                        && !cursoEncontrado.getFechaFin().trim().isEmpty()) {
+                    cursoHTML.append("<div class=\"curso-fechas\">📅 ").append(formatearFecha(cursoEncontrado.getFechaInicio()))
+                            .append(" - ").append(formatearFecha(cursoEncontrado.getFechaFin())).append("</div>\n");
+                }
+
+                // SOLO mostrar descripción si no está vacía
+                if (cursoEncontrado.getDescripcion() != null
+                        && !cursoEncontrado.getDescripcion().trim().isEmpty()) {
+                    cursoHTML.append("<div class=\"curso-descripcion\">📝 ").append(escapeHTML(cursoEncontrado.getDescripcion())).append("</div>\n");
+                }
+
+                // SOLO mostrar requisitos si no están vacíos
+                if (cursoEncontrado.getRequisitos() != null
+                        && !cursoEncontrado.getRequisitos().trim().isEmpty()) {
+                    cursoHTML.append("<div class=\"curso-requisitos\">🎯 ").append(escapeHTML(cursoEncontrado.getRequisitos())).append("</div>\n");
+                }
+            } else {
+                // Usar datos de la tarjeta visual como fallback - APLICAR MISMAS VALIDACIONES
+                for (javafx.scene.Node node : tarjetaCurso.getChildren()) {
+                    if (node instanceof Label) {
+                        Label label = (Label) node;
+                        String texto = label.getText();
+                        if (texto != null) {
+                            if (texto.startsWith("🏷️")) {
+                                String categoria = texto.substring(2).trim();
+                                if (!categoria.isEmpty() && !categoria.equals("General")) {
+                                    cursoHTML.append("<div class=\"curso-categoria\">📚 ").append(escapeHTML(categoria)).append("</div>\n");
+                                }
+                            } else if (texto.startsWith("⏱")) {
+                                String duracion = texto.substring(2).trim();
+                                if (!duracion.isEmpty() && !duracion.equals("No aplica")) {
+                                    cursoHTML.append("<div class=\"curso-duracion\">⏱ ").append(escapeHTML(duracion)).append("</div>\n");
+                                }
+                            } else if (texto.contains("Cupos:")) {
+                                String cuposTexto = texto.replace("📦 Cupos: ", "").trim();
+                                try {
+                                    int cupos = Integer.parseInt(cuposTexto);
+                                    if (cupos > 0) {
+                                        cursoHTML.append("<div class=\"curso-cupos\">👥 ").append(cupos).append(" cupos disponibles</div>\n");
+                                    }
+                                } catch (NumberFormatException e) {
+                                    // Ignorar si no es un número válido
+                                }
+                            } else if (texto.startsWith("📅")) {
+                                String fechas = texto.substring(2).trim();
+                                if (!fechas.isEmpty() && !fechas.equals("null - null")) {
+                                    cursoHTML.append("<div class=\"curso-fechas\">📅 ").append(escapeHTML(fechas)).append("</div>\n");
+                                }
+                            } else if (texto.startsWith("🎯")) {
+                                String requisitos = texto.substring(2).trim();
+                                if (!requisitos.isEmpty()) {
+                                    cursoHTML.append("<div class=\"curso-requisitos\">🎯 ").append(escapeHTML(requisitos)).append("</div>\n");
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             cursoHTML.append("</div>\n");
 
-            String linkGoogleForm = obtenerLinkGoogleFormDeCurso(nombreCurso);
-
+            // BOTONES - INSCRIPCIÓN Y WHATSAPP
             cursoHTML.append("<div class=\"botones-container\">\n");
 
-            if (linkGoogleForm != null && !linkGoogleForm.equals("#")) {
-                cursoHTML.append("<a href=\"").append(escapeHTML(linkGoogleForm))
+            // BOTÓN DE INSCRIPCIÓN (Google Form) - SOLO SI HAY LINK VÁLIDO
+            if (linkGoogleForm != null && !linkGoogleForm.trim().isEmpty() && !linkGoogleForm.equals("#")) {
+                // Asegurarnos de que el link sea válido
+                String linkFinal = linkGoogleForm.trim();
+                if (!linkFinal.startsWith("http")) {
+                    linkFinal = "https://" + linkFinal;
+                }
+
+                cursoHTML.append("<a href=\"").append(escapeHTML(linkFinal))
                         .append("\" target=\"_blank\" class=\"boton-inscripcion\" title=\"Inscribirse en el curso: ")
                         .append(escapeHTML(nombreCurso))
-                        .append("\">")
-                        .append("📝 Inscribirse")
+                        .append("\" style=\"text-decoration: none; display: block; text-align: center;\">")
+                        .append("📝 Inscribirse en el Curso")
                         .append("</a>\n");
+
+                System.out.println("✅ BOTÓN INSCRIPCIÓN GENERADO para: " + nombreCurso);
+                System.out.println("🔗 ENLACE: " + linkFinal);
+            } else {
+                // NO mostrar botón si no hay link válido
+                System.out.println("❌ NO SE MUESTRA BOTÓN para: " + nombreCurso + " - Link no disponible");
             }
 
-            String mensajeWhatsApp = "Hola! Estoy interesado en el curso: " + nombreCurso;
-            String enlaceWhatsApp = "https://wa.me/573127125150?text=" + java.net.URLEncoder.encode(mensajeWhatsApp, "UTF-8");
+            // BOTÓN DE WHATSAPP - SOLO SI HAY TELÉFONO CONFIGURADO
+            String telefono = usuarioActual.getTelefono();
+            if (telefono != null && !telefono.trim().isEmpty()) {
+                String numeroWhatsApp = telefono.replaceAll("[^0-9]", "");
+                String mensajeWhatsApp = "Hola! Tengo consultas sobre el curso: " + nombreCurso;
+                String enlaceWhatsApp = "https://wa.me/" + numeroWhatsApp + "?text="
+                        + java.net.URLEncoder.encode(mensajeWhatsApp, "UTF-8");
 
-            cursoHTML.append("<a href=\"").append(enlaceWhatsApp)
-                    .append("\" target=\"_blank\" class=\"boton-whatsapp\" title=\"Consultar por WhatsApp sobre: ")
-                    .append(escapeHTML(nombreCurso))
-                    .append("\">💬 Consultar por WhatsApp</a>\n");
+                cursoHTML.append("<a href=\"").append(enlaceWhatsApp)
+                        .append("\" target=\"_blank\" class=\"boton-whatsapp\" title=\"Consultar por WhatsApp sobre: ")
+                        .append(escapeHTML(nombreCurso))
+                        .append("\" style=\"text-decoration: none; display: block; text-align: center;\">")
+                        .append("💬 Consultar por WhatsApp")
+                        .append("</a>\n");
+            } else {
+                // NO mostrar botón de WhatsApp si no hay teléfono
+                System.out.println("❌ NO SE MUESTRA BOTÓN WHATSAPP para: " + nombreCurso + " - Teléfono no configurado");
+            }
 
             cursoHTML.append("</div>\n");
             cursoHTML.append("</div>\n");
+
             return cursoHTML.toString();
 
         } catch (Exception e) {
             e.printStackTrace();
-            return "<div class=\"curso-card\">Error generando curso</div>";
+            return "<div class=\"curso-card\">Error generando curso: " + e.getMessage() + "</div>";
         }
     }
 
@@ -1699,24 +1785,24 @@ public class ControladorDashboardFundacion implements Initializable {
 
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
         alert.setTitle("Actualizar Inscripciones");
-        alert.setHeaderText("¿Cómo quieres actualizar las inscripciones?");
-        alert.setContentText("URL configurada: " + acortarURL(googleSheetUrl));
+        alert.setHeaderText("¿Cómo quieres sincronizar las inscripciones?");
+        alert.setContentText("Se eliminarán las inscripciones que ya no estén en Google Sheets");
 
-        ButtonType btnOnline = new ButtonType("🔄 Conectar a Google Sheets");
-        ButtonType btnOffline = new ButtonType("📋 Usar datos locales");
-        ButtonType btnConfig = new ButtonType("⚙ Cambiar URL");
+        ButtonType btnSincronizarCompleto = new ButtonType("🔄 Sincronización Completa");
+        ButtonType btnSoloDescargar = new ButtonType("📥 Solo descargar nuevas");
+        ButtonType btnSoloLocal = new ButtonType("📋 Solo datos locales");
         ButtonType btnCancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
 
-        alert.getButtonTypes().setAll(btnOnline, btnOffline, btnConfig, btnCancelar);
+        alert.getButtonTypes().setAll(btnSincronizarCompleto, btnSoloDescargar, btnSoloLocal, btnCancelar);
 
         Optional<ButtonType> resultado = alert.showAndWait();
         if (resultado.isPresent()) {
-            if (resultado.get() == btnOnline) {
+            if (resultado.get() == btnSincronizarCompleto) {
+                sincronizarCompleto();
+            } else if (resultado.get() == btnSoloDescargar) {
                 actualizarDesdeGoogleSheets();
-            } else if (resultado.get() == btnOffline) {
+            } else if (resultado.get() == btnSoloLocal) {
                 cargarInscripcionesDesdeBD();
-            } else if (resultado.get() == btnConfig) {
-                mostrarDialogoConfiguracionURL();
             }
         }
     }
@@ -1928,4 +2014,217 @@ public class ControladorDashboardFundacion implements Initializable {
         }
     }
 
+    @FXML
+    private void editarDatosUsuario() {
+        try {
+            // Crear diálogo personalizado
+            Dialog<Map<String, String>> dialog = new Dialog<>();
+            dialog.setTitle("✏️ Editar Datos de Fundación");
+            dialog.setHeaderText("Actualiza la información de tu fundación");
+
+            // Configurar botones
+            ButtonType btnGuardar = new ButtonType("Guardar", ButtonBar.ButtonData.OK_DONE);
+            ButtonType btnCancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+            dialog.getDialogPane().getButtonTypes().addAll(btnGuardar, btnCancelar);
+
+            // Crear formulario
+            GridPane grid = new GridPane();
+            grid.setHgap(10);
+            grid.setVgap(10);
+            grid.setPadding(new Insets(20, 150, 10, 10));
+
+            TextField txtNombre = new TextField();
+            txtNombre.setPromptText("Nombre de la fundación");
+            txtNombre.setText(usuarioActual.getNombreCompleto());
+            txtNombre.setPrefWidth(250);
+
+            TextField txtTelefono = new TextField();
+            txtTelefono.setPromptText("Número de contacto");
+            txtTelefono.setText(usuarioActual.getTelefono() != null ? usuarioActual.getTelefono() : "");
+            txtTelefono.setPrefWidth(250);
+
+            // Agregar información
+            Label infoLabel = new Label("💡 Este número se usará para consultas sobre los cursos");
+            infoLabel.setStyle("-fx-text-fill: #666; -fx-font-size: 10px;");
+            infoLabel.setWrapText(true);
+
+            grid.add(new Label("Fundación:"), 0, 0);
+            grid.add(txtNombre, 1, 0);
+            grid.add(new Label("Contacto:"), 0, 1);
+            grid.add(txtTelefono, 1, 1);
+            grid.add(infoLabel, 0, 2, 2, 1);
+
+            dialog.getDialogPane().setContent(grid);
+            dialog.getDialogPane().setPrefSize(500, 200);
+
+            // Focalizar el primer campo
+            Platform.runLater(txtNombre::requestFocus);
+
+            // Convertir resultado
+            dialog.setResultConverter(dialogButton -> {
+                if (dialogButton == btnGuardar) {
+                    Map<String, String> resultado = new java.util.HashMap<>();
+                    resultado.put("nombre", txtNombre.getText().trim());
+                    resultado.put("telefono", txtTelefono.getText().trim());
+                    return resultado;
+                }
+                return null;
+            });
+
+            Optional<Map<String, String>> resultado = dialog.showAndWait();
+
+            if (resultado.isPresent()) {
+                Map<String, String> datos = resultado.get();
+                String nuevoNombre = datos.get("nombre");
+                String nuevoTelefono = datos.get("telefono");
+
+                if (nuevoNombre.isEmpty()) {
+                    mostrarAlerta("Error", "El nombre de la fundación no puede estar vacío");
+                    return;
+                }
+
+                if (nuevoTelefono != null && !nuevoTelefono.isEmpty() && !validarTelefono(nuevoTelefono)) {
+                    mostrarAlerta("Error", "Formato de teléfono inválido. Use solo números");
+                    return;
+                }
+
+                boolean exito = ControladorBD.actualizarDatosUsuario(
+                        usuarioActual.getId(),
+                        nuevoNombre,
+                        nuevoTelefono
+                );
+
+                if (exito) {
+                    Usuario usuarioActualizado = ControladorBD.obtenerUsuarioPorId(usuarioActual.getId());
+                    if (usuarioActualizado != null) {
+                        usuarioActual.setNombreCompleto(usuarioActualizado.getNombreCompleto());
+                        usuarioActual.setTelefono(usuarioActualizado.getTelefono());
+                    } else {
+                        usuarioActual.setNombreCompleto(nuevoNombre);
+                        usuarioActual.setTelefono(nuevoTelefono);
+                    }
+
+                    // Actualizar interfaz
+                    lblUsuario.setText(usuarioActual.getNombreCompleto() + " (Fundación)");
+
+                    mostrarAlerta("Exito",
+                            "Datos actualizados correctamente\n\n"
+                            + "Fundacion: " + usuarioActual.getNombreCompleto() + "\n"
+                            + "Contacto: " + (usuarioActual.getTelefono() == null || usuarioActual.getTelefono().isEmpty()
+                            ? "No configurado" : usuarioActual.getTelefono())
+                    );
+                } else {
+                    mostrarAlerta("Error", "No se pudieron actualizar los datos");
+                }
+            }
+
+        } catch (Exception e) {
+            mostrarAlerta("Error", "Error al editar datos: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private boolean validarTelefono(String telefono) {
+        return telefono.matches("^[0-9+\\s\\-\\(\\)]{10,20}$");
+    }
+
+    private String crearEnlaceWhatsApp(String mensaje) {
+        try {
+            String telefono = usuarioActual.getTelefono();
+
+            if (telefono == null || telefono.trim().isEmpty()) {
+                throw new IllegalStateException("Número de WhatsApp no configurado");
+            }
+
+            telefono = telefono.replaceAll("[^0-9]", "");
+
+            String enlaceWhatsApp = "https://wa.me/" + telefono + "?text="
+                    + java.net.URLEncoder.encode(mensaje, "UTF-8");
+            return enlaceWhatsApp;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("No se pudo crear enlace de WhatsApp: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void sincronizarCompleto() {
+        if (googleSheetUrl == null || googleSheetUrl.isEmpty()) {
+            mostrarAlerta("Error", "No hay URL de Google Sheets configurada");
+            return;
+        }
+
+        Task<Boolean> task = new Task<Boolean>() {
+            @Override
+            protected Boolean call() throws Exception {
+                updateMessage("🔄 Sincronizando con Google Sheets...");
+
+                // 1. Obtener datos actuales de Google Sheets
+                ObservableList<Inscripcion> nuevasInscripciones
+                        = sheetsConnector.obtenerInscripcionesDesdeSheet(googleSheetUrl);
+
+                // 2. Guardar nuevas inscripciones
+                int nuevasGuardadas = 0;
+                for (Inscripcion inscripcion : nuevasInscripciones) {
+                    if (ControladorBD.guardarInscripcion(inscripcion)) {
+                        nuevasGuardadas++;
+                    }
+                }
+
+                // 3. Sincronizar eliminaciones
+                ObservableList<Inscripcion> inscripcionesActualesBD = ControladorBD.obtenerInscripciones();
+                boolean eliminacionesRealizadas = sheetsConnector.sincronizarEliminacionesConBD(
+                        googleSheetUrl, inscripcionesActualesBD);
+
+                return nuevasGuardadas > 0 || eliminacionesRealizadas;
+            }
+        };
+
+        task.setOnRunning(e -> {
+            lblEstadoURL.setText("🔄 Sincronizando...");
+        });
+
+        task.setOnSucceeded(e -> {
+            try {
+                cargarInscripcionesDesdeBD();
+                lblEstadoURL.setText("Sincronizado");
+                mostrarAlerta("Sincronizado", "Sincronización completada correctamente");
+            } catch (Exception ex) {
+                mostrarAlerta("Error", "Error en sincronizacion: " + ex.getMessage());
+            }
+        });
+
+        task.setOnFailed(e -> {
+            lblEstadoURL.setText("Error sincronizacion");
+            mostrarAlerta("Error", "Fallo la sincronizacion: " + task.getException().getMessage());
+        });
+
+        new Thread(task).start();
+    }
+
+    @FXML
+    private void eliminarInscripcionSeleccionada() {
+        Inscripcion seleccionada = tablaInscripciones.getSelectionModel().getSelectedItem();
+        if (seleccionada != null) {
+            Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+            alert.setTitle("Confirmar eliminacionn");
+            alert.setHeaderText("¿Eliminar inscripcion?");
+            alert.setContentText("¿estas seguro de eliminar la inscripción de: "
+                    + seleccionada.getNombreEstudiante() + "?");
+
+            if (alert.showAndWait().get() == ButtonType.OK) {
+                if (ControladorBD.eliminarInscripcion(seleccionada.getId())) {
+                    inscripcionesData.remove(seleccionada);
+                    tablaInscripciones.refresh();
+                    actualizarContadorInscripciones();
+                    mostrarAlerta("eliminacion completa", "Inscripción eliminada correctamente");
+                } else {
+                    mostrarAlerta("Error", "No se pudo eliminar la inscripción");
+                }
+            }
+        } else {
+            mostrarAlerta("Error", "Selecciona una inscripción para eliminar");
+        }
+    }
 }

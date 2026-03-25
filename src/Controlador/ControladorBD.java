@@ -101,12 +101,26 @@ public class ControladorBD {
         FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
     )
     """;
+            String sqlHistorico = """
+    CREATE TABLE IF NOT EXISTS historico_inventario (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        producto_id INTEGER NOT NULL,
+        tipo_movimiento TEXT NOT NULL,
+        cantidad INTEGER NOT NULL,
+        cantidad_anterior INTEGER NOT NULL,
+        cantidad_nueva INTEGER NOT NULL,
+        fecha_movimiento DATETIME DEFAULT CURRENT_TIMESTAMP,
+        observaciones TEXT,
+        FOREIGN KEY (producto_id) REFERENCES productos (id)
+    )
+    """;
 
             Statement stmt = conn.createStatement();
             stmt.execute(sqlUsuarios);
             stmt.execute(sqlProductos);
             stmt.execute(sqlReservas);
             stmt.execute(sqlProyectos);
+            stmt.execute(sqlHistorico);
             crearTablaInscripciones();
             crearTablaConfiguracion();
 
@@ -985,6 +999,117 @@ public class ControladorBD {
         }
 
         return null;
+    }
+
+    // En ControladorBD - agregar este método
+    public static boolean registrarMovimiento(int productoId, String tipoMovimiento,
+            int cantidad, int cantidadAnterior,
+            int cantidadNueva, String observaciones) {
+        String sql = "INSERT INTO historico_inventario (producto_id, tipo_movimiento, cantidad, "
+                + "cantidad_anterior, cantidad_nueva, observaciones) VALUES (?, ?, ?, ?, ?, ?)";
+
+        try (Connection conn = getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, productoId);
+            pstmt.setString(2, tipoMovimiento);
+            pstmt.setInt(3, cantidad);
+            pstmt.setInt(4, cantidadAnterior);
+            pstmt.setInt(5, cantidadNueva);
+            pstmt.setString(6, observaciones);
+
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("Error registrando movimiento: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public static ObservableList<MovimientoInventario> obtenerHistoricoProducto(int productoId) {
+        ObservableList<MovimientoInventario> movimientos = FXCollections.observableArrayList();
+        String sql = "SELECT * FROM historico_inventario WHERE producto_id = ? ORDER BY fecha_movimiento DESC";
+
+        try (Connection conn = getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, productoId);
+            ResultSet rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                MovimientoInventario movimiento = new MovimientoInventario(
+                        rs.getInt("id"),
+                        rs.getInt("producto_id"),
+                        rs.getString("tipo_movimiento"),
+                        rs.getInt("cantidad"),
+                        rs.getInt("cantidad_anterior"),
+                        rs.getInt("cantidad_nueva"),
+                        rs.getTimestamp("fecha_movimiento"),
+                        rs.getString("observaciones")
+                );
+                movimientos.add(movimiento);
+            }
+        } catch (SQLException e) {
+            System.err.println("Error obteniendo histórico: " + e.getMessage());
+        }
+        return movimientos;
+    }
+
+    public static boolean actualizarDatosUsuario(int usuarioId, String nuevoNombre, String nuevoTelefono) {
+        String sql = "UPDATE usuarios SET nombre_completo = ?, telefono = ? WHERE id = ?";
+
+        try (Connection conn = getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, nuevoNombre);
+            pstmt.setString(2, nuevoTelefono);
+            pstmt.setInt(3, usuarioId);
+
+            int filasAfectadas = pstmt.executeUpdate();
+            return filasAfectadas > 0;
+
+        } catch (SQLException e) {
+            System.err.println("Error actualizando datos usuario: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public static Usuario obtenerUsuarioPorId(int usuarioId) {
+        String sql = "SELECT id, nombre_completo, correo, tipo_usuario, telefono FROM usuarios WHERE id = ?";
+
+        try (Connection conn = getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, usuarioId);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                // Usar constructor vacío y setters (como está definido en la clase)
+                Usuario usuario = new Usuario();
+                usuario.setId(rs.getInt("id"));
+                usuario.setNombreCompleto(rs.getString("nombre_completo"));
+                usuario.setCorreo(rs.getString("correo"));
+                usuario.setTipoUsuario(rs.getString("tipo_usuario"));
+                usuario.setTelefono(rs.getString("telefono"));
+                return usuario;
+            }
+
+        } catch (Exception e) {
+            System.err.println("Error obteniendo usuario: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+
+    /**
+     * Eliminar una inscripción por ID
+     */
+    public static boolean eliminarInscripcion(int inscripcionId) {
+        String sql = "DELETE FROM inscripciones WHERE id = ?";
+
+        try (Connection conn = getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, inscripcionId);
+            return pstmt.executeUpdate() > 0;
+
+        } catch (SQLException e) {
+            System.err.println("Error eliminando inscripción: " + e.getMessage());
+            return false;
+        }
     }
 
 }

@@ -1,10 +1,4 @@
-/* ======================================================================
-   IMPULSA360 - styles.css
-   BASE ORIGINAL + MODO OSCURO (VSCode-style) + SWITCH ICONICO
-   Mantengo exactamente los tamaños de labels y los estilos que pediste.
-   ====================================================================== */
 
-/* ===== VARIABLES ===== */
 .root {
     -fx-primary: #3b82f6;
     -fx-primary-dark: #2563eb;
@@ -16,13 +10,10 @@
     -fx-text-secondary: #6b7280;
     -fx-text-light: #9ca3af;
     -fx-bg-input: #f9fafb;
-    -fx-border-light: #e5e7eb;
+    -fx-border-light: #27282b;
     -fx-border-focus: #3b82f6;
 }
-
-/* ==========================
-   MODO OSCURO (activar theme-dark en el root)
-   ========================== */
+/* Por el momento no aplica */
 .theme-dark {
     /* override core colors */
     -fx-primary: #60a5fa;
@@ -38,9 +29,9 @@
     -fx-border-light: rgba(255,255,255,0.06);
     -fx-border-focus: #60a5fa;
     /* backgrounds */
-    -fx-surface: #0f1724;        /* main panel */
-    -fx-surface-2: #0b1220;      /* header, cards */
-    -fx-surface-3: #111827;      /* alternate */
+    -fx-surface: #0f1724;        
+    -fx-surface-2: #0b1220;      
+    -fx-surface-3: #111827;      
 }
 
 /* utility to fetch dark surface if in dark mode, else fallback */
@@ -50,10 +41,6 @@
 .root .surface {
     -fx-background-color: white;
 }
-
-/* ==========================
-   RESTO: mantenemos estilos del login EXACTOS (no tocar)
-   ========================== */
 
 /* ===== ESTILOS DEL LOGIN ===== */
 .modern-form {
@@ -98,7 +85,7 @@
 }
 
 .form-input:hover {
-    -fx-border-color: #d1d5db;
+    -fx-border-color: #494b4f;
     -fx-background-color: white;
 }
 
@@ -842,12 +829,6 @@
     -fx-preserve-ratio: true;
 }
 
-/* ==========================
-   THEME SWITCH (ToggleButton) con iconos ☀️ / 🌙
-   - Usa: <ToggleButton fx:id="themeSwitch" styleClass="theme-switch" />
-   - En el controlador añadir listener para alternar "theme-dark" en root
-   ========================== */
-
 /* base */
 .theme-switch {
     -fx-min-width: 56;
@@ -1164,7 +1145,7 @@
     -fx-effect: dropshadow(gaussian, rgba(6, 182, 212, 0.15), 6, 0, 0, 2);
 }
 
-/* Botón Ver URL (Success) */
+/* Boton Ver URL (Success) */
 .btn-success {
     -fx-background-color: #10b981;
     -fx-text-fill: white;
@@ -1192,9 +1173,9 @@
     -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.15), 6, 0, 0, 2);
 }
 
-/* ==========================
-   ESTILOS PARA DATEPICKER (Fecha inicio y fin)
-   ========================== */
+/* 
+   estilos para datepicker (Fecha inicio y fin)
+    */
 .date-picker {
     -fx-background-color: -fx-bg-input;
     -fx-border-color: -fx-border-light;
@@ -1212,7 +1193,7 @@
 }
 
 .date-picker:hover {
-    -fx-border-color: #d1d5db;
+    -fx-border-color: #494b4f;
     -fx-background-color: white;
 }
 
@@ -1295,4 +1276,51 @@
 .theme-dark .date-picker-popup .day-cell:selected {
     -fx-background-color: -fx-primary;
     -fx-text-fill: white;
+}
+.btn-reporte{
+    -fx-background-color: #64b531;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8;
+    -fx-cursor: hand;
+    -fx-font-size: 14px;
+    -fx-padding: 8 12 8 12;
+    -fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.18), 6, 0, 0, 2);
+}
+.btn-reporte:hover {
+    -fx-background-color: #388017;
+    -fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.36), 10, 0, 0, 4);
+    -fx-translate-y: -1px;
+}
+.btn-historial{
+    -fx-background-color: #cb42f5;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8;
+    -fx-cursor: hand;
+    -fx-font-size: 14px;
+    -fx-padding: 8 12 8 12;
+    -fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.18), 6, 0, 0, 2);
+}
+.btn-historial:hover {
+    -fx-background-color: #85319e;
+    -fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.36), 10, 0, 0, 4);
+    -fx-translate-y: -1px;
+}
+
+.btn-danger {
+    -fx-background-color: #dc3545;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 5;
+    -fx-padding: 8 12;
+}
+
+.btn-danger:hover {
+    -fx-background-color: #c82333;
+    -fx-cursor: hand;
+}
+
+.btn-danger:pressed {
+    -fx-background-color: #bd2130;
 }

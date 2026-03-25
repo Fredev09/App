@@ -16,6 +16,13 @@ import java.util.List;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.HashSet;
 
 /**
  *
@@ -28,9 +35,7 @@ public class ControladorGoogleSheets {
 
         try {
             String csvUrl = convertirUrlACsv(sheetUrl);
-            System.out.println("Conectando a: " + csvUrl);
 
-            // Descargar datos como CSV
             List<String> lineasCSV = descargarCSV(csvUrl);
 
             if (lineasCSV.isEmpty()) {
@@ -38,14 +43,13 @@ public class ControladorGoogleSheets {
                 return inscripciones;
             }
 
-            // Procesar las líneas
             DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
             boolean primeraLinea = true;
 
             for (String linea : lineasCSV) {
                 if (primeraLinea) {
                     primeraLinea = false;
-                    continue; // Saltar encabezados
+                    continue; 
                 }
 
                 String[] datos = parsearLineaCSV(linea);
@@ -306,6 +310,65 @@ public class ControladorGoogleSheets {
 
         return campos.toArray(new String[0]);
     }
+    
+    /**
+ * Método para sincronizar y eliminar inscripciones que ya no están en Google Sheets
+ */
+public boolean sincronizarEliminacionesConBD(String sheetUrl, ObservableList<Inscripcion> inscripcionesActualesBD) {
+    try {
+        // Obtener datos actuales de Google Sheets
+        ObservableList<Inscripcion> inscripcionesSheets = obtenerInscripcionesDesdeSheet(sheetUrl);
+        
+        // Crear conjunto de identificadores únicos de Google Sheets
+        HashSet<String> identificadoresSheets = new HashSet<>();
+        for (Inscripcion inscripcion : inscripcionesSheets) {
+            String identificador = inscripcion.getNumeroIdentificacion() + "_" + inscripcion.getCursoSolicitado();
+            identificadoresSheets.add(identificador);
+        }
+        
+        // Encontrar inscripciones a eliminar
+        List<Inscripcion> paraEliminar = new ArrayList<>();
+        for (Inscripcion inscripcionBD : inscripcionesActualesBD) {
+            String identificadorBD = inscripcionBD.getNumeroIdentificacion() + "_" + inscripcionBD.getCursoSolicitado();
+            if (!identificadoresSheets.contains(identificadorBD)) {
+                paraEliminar.add(inscripcionBD);
+            }
+        }
+        
+        // Eliminar de la base de datos
+        int eliminadas = 0;
+        for (Inscripcion inscripcion : paraEliminar) {
+            if (eliminarInscripcionDeBD(inscripcion.getId())) {
+                eliminadas++;
+            }
+        }
+        
+        System.out.println("✅ Sincronización completada: " + eliminadas + " inscripciones eliminadas");
+        return eliminadas > 0;
+        
+    } catch (Exception e) {
+        System.err.println("❌ Error en sincronización: " + e.getMessage());
+        return false;
+    }
+}
+
+/**
+ * Eliminar inscripción específica de la base de datos
+ */
+private boolean eliminarInscripcionDeBD(int inscripcionId) {
+    String sql = "DELETE FROM inscripciones WHERE id = ?";
+    
+    try (Connection conn = ControladorBD.getConnection();
+         PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        
+        pstmt.setInt(1, inscripcionId);
+        return pstmt.executeUpdate() > 0;
+        
+    } catch (SQLException e) {
+        System.err.println("Error eliminando inscripción " + inscripcionId + ": " + e.getMessage());
+        return false;
+    }
+}
 
     private void mostrarAlerta(String titulo, String mensaje) {
         javafx.application.Platform.runLater(() -> {
@@ -317,4 +380,17 @@ public class ControladorGoogleSheets {
             alert.showAndWait();
         });
     }
+    
+    private boolean hayInternet() {
+    try {
+        URL url = new URL("https://www.google.com");
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setConnectTimeout(3000);
+        connection.connect();
+        return connection.getResponseCode() == 200;
+    } catch (Exception e) {
+        return false;
+    }
+}
+
 }

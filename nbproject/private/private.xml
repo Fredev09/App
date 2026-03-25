@@ -23,7 +23,9 @@
             <file>file:/C:/Users/fredd/OneDrive/Documentos/NetBeansProjects/App/src/Controlador/ControladorGoogleSheets.java</file>
             <file>file:/C:/Users/fredd/OneDrive/Documentos/NetBeansProjects/App/src/Modelo/Inscripcion.java</file>
             <file>file:/C:/Users/fredd/OneDrive/Documentos/NetBeansProjects/App/src/Vista/icono.png</file>
-            <file>file:/C:/Users/fredd/OneDrive/Documentos/NetBeansProjects/App/src/Vista/DashboardFundacion.fxml</file>
+            <file>file:/C:/Users/fredd/OneDrive/Documentos/NetBeansProjects/App/src/Modelo/MovimientoInventario.java</file>
+            <file>file:/C:/Users/fredd/OneDrive/Documentos/NetBeansProjects/App/src/Modelo/EstadoDespliegue.java</file>
+            <file>file:/C:/Users/fredd/OneDrive/Documentos/NetBeansProjects/App/src/Controlador/ControladorEncriptar.java</file>
         </group>
     </open-files>
 </project-private>

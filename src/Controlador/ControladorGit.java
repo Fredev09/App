@@ -36,6 +36,7 @@ public class ControladorGit {
 
     private BiConsumer<String, String> mostrarAlertaFunction;
     private Supplier<Boolean> generadorCatalogoFunction;
+    private boolean operacionEnCurso = false;
 
     public ControladorGit(BiConsumer<String, String> mostrarAlertaFunction,
             Supplier<Boolean> generadorCatalogoFunction) {
@@ -79,7 +80,7 @@ public class ControladorGit {
     public boolean instalarGitWindows() {
         try {
             String url = "https://github.com/git-for-windows/git/releases/download/v2.42.0.windows.2/Git-2.42.0.2-64-bit.exe";
-            String archivoInstalador = "git_installer.exe";
+            String archivoInstalador = "git_installer_" + System.currentTimeMillis() + ".exe";
 
             ProcessBuilder descarga = new ProcessBuilder(
                     "cmd.exe", "/c",
@@ -90,7 +91,6 @@ public class ControladorGit {
             if (resultadoDescarga != 0) {
                 return false;
             }
-
             ProcessBuilder instalacion = new ProcessBuilder(
                     "cmd.exe", "/c",
                     archivoInstalador + " /SILENT /NORESTART /COMPONENTS=icons,assoc,assoc_sh"
@@ -100,6 +100,7 @@ public class ControladorGit {
             int resultadoInstalacion = procesoInstalacion.waitFor();
 
             Thread.sleep(10000);
+
             new File(archivoInstalador).delete();
             actualizarPathDelSistema();
 
@@ -127,7 +128,7 @@ public class ControladorGit {
 
             Alert confirmacion = new Alert(Alert.AlertType.CONFIRMATION);
             confirmacion.setTitle("Instalar Git");
-            confirmacion.setHeaderText("Instalación Automatica de Git");
+            confirmacion.setHeaderText("Instalacion Automatica de Git");
             confirmacion.setContentText("¿Deseas instalar Git automaticamente?\n\n"
                     + "• Descargara la version mas reciente\n"
                     + "• requiere conexion a internet\n"
@@ -280,36 +281,166 @@ public class ControladorGit {
         }
     }
 
-    /**
-     * Método separado para el despliegue en background
-     */
-    /**
-     * Método separado para el despliegue en background con actualización de
-     * progreso
-     */
-    private void ejecutarDespliegueEnBackground(Class<?> clazz, File carpetaADesplegar, String nombreProyecto,
-            String repositorioGuardado, Runnable onSuccess, Runnable onError) {
+    private String[] pedirCredencialesConDialogo() {
+        try {
+            Dialog<javafx.util.Pair<String, String>> dialog = new Dialog<>();
+            dialog.setTitle("Credenciales GitHub");
+            dialog.setHeaderText("Ingresa tus credenciales de GitHub");
+            dialog.setResizable(true);
 
-        // Obtener referencia al diálogo de progreso (necesitarás pasarlo como parámetro o hacerlo accesible)
-        // Para simplificar, vamos a crear un sistema de actualización de estado
+            // Configurar botones
+            ButtonType loginButtonType = new ButtonType("Guardar", ButtonBar.ButtonData.OK_DONE);
+            dialog.getDialogPane().getButtonTypes().addAll(loginButtonType, ButtonType.CANCEL);
+
+            // Crear campos
+            javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
+            grid.setHgap(10);
+            grid.setVgap(10);
+            grid.setPadding(new Insets(20, 150, 10, 10));
+
+            javafx.scene.control.TextField usuario = new javafx.scene.control.TextField();
+            usuario.setPromptText("Usuario GitHub");
+            usuario.setPrefWidth(250);
+
+            javafx.scene.control.PasswordField token = new javafx.scene.control.PasswordField();
+            token.setPromptText("Token de acceso personal");
+            token.setPrefWidth(250);
+
+            grid.add(new Label("Usuario:"), 0, 0);
+            grid.add(usuario, 1, 0);
+            grid.add(new Label("Token:"), 0, 1);
+            grid.add(token, 1, 1);
+
+            // Agregar información sobre el token
+            Label infoLabel = new Label("• Ve a GitHub Settings → Developer settings → Personal access tokens\n• Crea un token con permisos 'repo'");
+            infoLabel.setStyle("-fx-text-fill: #666; -fx-font-size: 10px;");
+            infoLabel.setWrapText(true);
+            grid.add(infoLabel, 0, 2, 2, 1);
+
+            dialog.getDialogPane().setContent(grid);
+            dialog.getDialogPane().setPrefSize(500, 200);
+
+            // Habilitar botón solo cuando hay datos
+            javafx.scene.Node loginButton = dialog.getDialogPane().lookupButton(loginButtonType);
+            loginButton.setDisable(true);
+
+            // Validar que ambos campos tengan contenido
+            javafx.beans.value.ChangeListener<String> changeListener = (observable, oldValue, newValue) -> {
+                boolean ambosLlenos = !usuario.getText().trim().isEmpty() && !token.getText().trim().isEmpty();
+                loginButton.setDisable(!ambosLlenos);
+            };
+
+            usuario.textProperty().addListener(changeListener);
+            token.textProperty().addListener(changeListener);
+
+            // Convertir resultado
+            dialog.setResultConverter(dialogButton -> {
+                if (dialogButton == loginButtonType) {
+                    return new javafx.util.Pair<>(usuario.getText().trim(), token.getText().trim());
+                }
+                return null;
+            });
+
+            // Focalizar el primer campo
+            Platform.runLater(usuario::requestFocus);
+
+            java.util.Optional<javafx.util.Pair<String, String>> result = dialog.showAndWait();
+
+            if (result.isPresent()) {
+                javafx.util.Pair<String, String> creds = result.get();
+                if (!creds.getKey().isEmpty() && !creds.getValue().isEmpty()) {
+                    return new String[]{creds.getKey(), creds.getValue()};
+                }
+            }
+
+            return null;
+        } catch (Exception e) {
+            System.err.println("Error en diálogo de credenciales: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private void ejecutarDespliegueEnBackground(Class<?> clazz, File carpetaADesplegar, String nombreProyecto,
+            String repositorioGuardado, Dialog<Boolean> dialogProgreso,
+            Runnable onSuccess, Runnable onError) {
+
+        // Obtener las labels del diálogo existente
+        Label labelEstado = (Label) ((VBox) dialogProgreso.getDialogPane().getContent()).getChildren().get(1);
+        Label labelDetalle = (Label) ((VBox) dialogProgreso.getDialogPane().getContent()).getChildren().get(2);
+
+        // VARIABLE para controlar si fue cancelado por el usuario
+        final boolean[] fueCanceladoPorUsuario = {false};
+
         Task<Boolean> task = new Task<Boolean>() {
             @Override
             protected Boolean call() throws Exception {
                 File carpetaTemporal = null;
                 try {
-                    actualizarEstado("Iniciando despliegue...", "Verificando catálogo");
+                    // VERIFICAR CANCELACIÓN AL INICIO
+                    if (isCancelled() || fueCanceladoPorUsuario[0]) {
+                        System.out.println("🛑 Task cancelado antes de comenzar");
+                        return false;
+                    }
+
+                    actualizarEstado("Iniciando despliegue...", "Verificando credenciales", labelEstado, labelDetalle);
+
+                    // VERIFICAR CREDENCIALES PRIMERO
+                    String[] credenciales = obtenerCredencialesGuardadas(clazz);
+
+                    if (isCancelled() || fueCanceladoPorUsuario[0]) {
+                        System.out.println("🛑 Task cancelado durante credenciales");
+                        return false;
+                    }
+
+                    if (credenciales[0].isEmpty() || credenciales[1].isEmpty()) {
+                        actualizarEstado("Solicitando credenciales...", "Se necesitan credenciales de GitHub", labelEstado, labelDetalle);
+
+                        final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+                        final String[] nuevasCredenciales = new String[2];
+
+                        Platform.runLater(() -> {
+                            try {
+                                String[] creds = pedirCredencialesConDialogo();
+                                if (creds != null && !creds[0].isEmpty() && !creds[1].isEmpty()) {
+                                    nuevasCredenciales[0] = creds[0];
+                                    nuevasCredenciales[1] = creds[1];
+                                    guardarCredenciales(clazz, creds[0], creds[1]);
+                                    actualizarEstado("Credenciales guardadas", "Continuando con despliegue...", labelEstado, labelDetalle);
+                                }
+                            } finally {
+                                latch.countDown();
+                            }
+                        });
+
+                        if (!latch.await(2, java.util.concurrent.TimeUnit.MINUTES)) {
+                            Platform.runLater(() -> mostrarAlerta("Error", "Tiempo agotado esperando credenciales"));
+                            return false;
+                        }
+
+                        credenciales = obtenerCredencialesGuardadas(clazz);
+
+                        if (credenciales[0].isEmpty() || credenciales[1].isEmpty()) {
+                            Platform.runLater(() -> mostrarAlerta("Error", "Se necesitan credenciales de GitHub para continuar"));
+                            return false;
+                        }
+                    }
+
+                    if (isCancelled() || fueCanceladoPorUsuario[0]) {
+                        System.out.println("🛑 Task cancelado antes de verificar catálogo");
+                        return false;
+                    }
+
+                    actualizarEstado("Verificando catálogo...", "Preparando archivos para GitHub Pages", labelEstado, labelDetalle);
 
                     boolean necesitaGenerarCatalogo = !carpetaADesplegar.exists();
 
                     if (necesitaGenerarCatalogo && generadorCatalogoFunction != null) {
-                        actualizarEstado("Generando catálogo...", "Preparando archivos para GitHub Pages");
+                        actualizarEstado("Generando catálogo...", "Ejecutando generador", labelEstado, labelDetalle);
 
-                        Platform.runLater(()
-                                -> mostrarAlerta("Generando Catálogo", "Preparando archivos para GitHub Pages...")
-                        );
-
-                        Thread.sleep(1000);
-                        actualizarEstado("Generando catálogo...", "Ejecutando generador");
+                        if (isCancelled() || fueCanceladoPorUsuario[0]) {
+                            System.out.println("🛑 Task cancelado antes de generar catálogo");
+                            return false;
+                        }
 
                         Boolean catalogoGenerado = generadorCatalogoFunction.get();
 
@@ -324,55 +455,78 @@ public class ControladorGit {
                             return false;
                         }
 
-                        actualizarEstado("Catálogo generado", "Continuando con despliegue");
+                        actualizarEstado("Catálogo generado", "Continuando con despliegue", labelEstado, labelDetalle);
                     } else if (carpetaADesplegar.exists()) {
-                        actualizarEstado("Catálogo verificado", "Continuando con despliegue");
+                        actualizarEstado("Catálogo verificado", "Continuando con despliegue", labelEstado, labelDetalle);
                     } else {
                         Platform.runLater(() -> mostrarAlerta("Error", "No hay catálogo para desplegar"));
                         return false;
                     }
 
-                    String[] credenciales = obtenerCredencialesGuardadas(clazz);
-                    if (credenciales[0].isEmpty() || credenciales[1].isEmpty()) {
-                        Platform.runLater(() -> mostrarAlerta("Error", "Credenciales de GitHub no configuradas"));
+                    if (isCancelled() || fueCanceladoPorUsuario[0]) {
+                        System.out.println("🛑 Task cancelado antes de crear carpeta temporal");
                         return false;
                     }
 
                     // Crear carpeta temporal con nombre único
                     String escritorio = System.getProperty("user.home") + "\\Desktop";
                     carpetaTemporal = new File(escritorio, "temp_deploy_" + System.currentTimeMillis());
-                    actualizarEstado("Preparando entorno...", "Creando carpeta temporal");
+                    actualizarEstado("Preparando entorno...", "Creando carpeta temporal", labelEstado, labelDetalle);
 
-                    actualizarEstado("Clonando repositorio...", "Descargando código desde GitHub");
+                    actualizarEstado("Clonando repositorio...", "Descargando código desde GitHub", labelEstado, labelDetalle);
+
+                    if (isCancelled() || fueCanceladoPorUsuario[0]) {
+                        System.out.println("🛑 Task cancelado antes de clonar repositorio");
+                        return false;
+                    }
+
                     if (!clonarRepositorio(carpetaTemporal, repositorioGuardado)) {
                         Platform.runLater(() -> mostrarAlerta("Error", "No se pudo clonar el repositorio"));
                         return false;
                     }
 
-                    actualizarEstado("Copiando archivos...", "Actualizando contenido del sitio");
+                    actualizarEstado("Copiando archivos...", "Actualizando contenido del sitio", labelEstado, labelDetalle);
+
+                    if (isCancelled() || fueCanceladoPorUsuario[0]) {
+                        System.out.println("🛑 Task cancelado antes de copiar archivos");
+                        return false;
+                    }
+
                     if (!copiarArchivosAlRepositorio(carpetaADesplegar, carpetaTemporal)) {
                         Platform.runLater(() -> mostrarAlerta("Error", "Error copiando archivos"));
                         return false;
                     }
 
-                    actualizarEstado("Subiendo a GitHub...", "Realizando commit y push");
+                    actualizarEstado("Subiendo a GitHub...", "Realizando commit y push", labelEstado, labelDetalle);
+
+                    if (isCancelled() || fueCanceladoPorUsuario[0]) {
+                        System.out.println("🛑 Task cancelado antes de comandos Git");
+                        return false;
+                    }
+
                     boolean exito = ejecutarComandosGit(carpetaTemporal, credenciales);
 
                     if (exito) {
-                        actualizarEstado("¡Despliegue completado!", "Limpiando archivos temporales");
+                        actualizarEstado("¡Despliegue completado!", "Limpiando archivos temporales", labelEstado, labelDetalle);
+                    } else {
+                        actualizarEstado("Error en despliegue", "Revise los detalles del error", labelEstado, labelDetalle);
                     }
 
                     return exito;
 
                 } catch (Exception e) {
-                    actualizarEstado("Error en despliegue", e.getMessage());
+                    if (isCancelled() || fueCanceladoPorUsuario[0]) {
+                        System.out.println("🛑 Task cancelado durante exception");
+                        return false;
+                    }
+                    actualizarEstado("Error en despliegue", e.getMessage(), labelEstado, labelDetalle);
                     System.out.println("Error en despliegue: " + e.getMessage());
                     e.printStackTrace();
                     return false;
                 } finally {
-                    // LIMPIEZA GARANTIZADA
-                    if (carpetaTemporal != null) {
-                        actualizarEstado("Finalizando...", "Limpiando archivos temporales");
+                    // LIMPIEZA GARANTIZADA (solo si no fue cancelado por usuario)
+                    if (carpetaTemporal != null && !fueCanceladoPorUsuario[0]) {
+                        actualizarEstado("Finalizando...", "Limpiando archivos temporales", labelEstado, labelDetalle);
                         System.out.println("Iniciando limpieza de carpeta temporal...");
 
                         try {
@@ -385,8 +539,10 @@ public class ControladorGit {
 
                         if (eliminado) {
                             System.out.println("✓ Carpeta temporal eliminada completamente");
+                            actualizarEstado("Limpieza completada", "Todos los archivos temporales eliminados", labelEstado, labelDetalle);
                         } else {
                             System.err.println("✗ No se pudo eliminar completamente: " + carpetaTemporal.getAbsolutePath());
+                            actualizarEstado("Advertencia", "Algunos archivos temporales no se pudieron eliminar", labelEstado, labelDetalle);
 
                             try {
                                 Thread.sleep(3000);
@@ -394,8 +550,10 @@ public class ControladorGit {
 
                                 if (eliminado) {
                                     System.out.println("✓ Carpeta temporal eliminada en segundo intento");
+                                    actualizarEstado("Limpieza completada", "Archivos temporales eliminados", labelEstado, labelDetalle);
                                 } else {
                                     System.err.println("✗ Carpeta temporal persistente: " + carpetaTemporal.getAbsolutePath());
+                                    actualizarEstado("Información", "Algunos archivos se limpiarán automáticamente después", labelEstado, labelDetalle);
                                     marcarParaLimpiezaPosterior(carpetaTemporal);
                                 }
                             } catch (InterruptedException ie) {
@@ -403,35 +561,58 @@ public class ControladorGit {
                                 marcarParaLimpiezaPosterior(carpetaTemporal);
                             }
                         }
+                    } else if (fueCanceladoPorUsuario[0]) {
+                        System.out.println("🛑 Limpieza omitida - Despliegue cancelado por usuario");
                     }
                 }
             }
-
-            private void actualizarEstado(String estado, String detalle) {
-                Platform.runLater(() -> {
-                    // Aquí actualizarías las etiquetas del diálogo
-                    // Necesitarías una forma de acceder al diálogo desde aquí
-                    System.out.println("ESTADO: " + estado + " - " + detalle);
-                });
-            }
         };
 
+        // CONFIGURAR EL BOTÓN CANCELAR USANDO EL RESULT CONVERTER (CORREGIDO)
+        dialogProgreso.setResultConverter(buttonType -> {
+            if (buttonType != null && buttonType.getButtonData() == ButtonBar.ButtonData.CANCEL_CLOSE) {
+                System.out.println("✅ Diálogo cancelado por usuario - Cancelando task...");
+
+                // Marcar que fue cancelado por usuario
+                fueCanceladoPorUsuario[0] = true;
+
+                // Cancelar el task
+                if (task.isRunning()) {
+                    boolean cancelled = task.cancel(true);
+                    System.out.println("✅ Task cancelado: " + cancelled);
+                }
+
+                // Resetear bandera
+                operacionEnCurso = false;
+                System.out.println("✅ Operación marcada como no en curso");
+
+                return false;
+            }
+            return null;
+        });
+
+        // CONFIGURAR LOS EVENTOS DEL TASK (MODIFICADOS)
         task.setOnSucceeded(e -> {
             boolean exito = task.getValue();
             Platform.runLater(() -> {
-                if (exito) {
-                    String urlPages = generarURLGitHubPages(repositorioGuardado);
-                    mostrarAlerta("Éxito",
-                            "Despliegue completado!\n\n"
-                            + "Tu sitio estará disponible en:\n" + urlPages + "\n\n"
-                            + "Se actualizará en 1-2 minutos");
-                    if (onSuccess != null) {
-                        onSuccess.run();
-                    }
-                } else {
-                    mostrarAlerta("Error", "Falló el despliegue a GitHub");
-                    if (onError != null) {
-                        onError.run();
+                // SOLO mostrar éxito si NO fue cancelado por usuario
+                if (!fueCanceladoPorUsuario[0]) {
+                    dialogProgreso.close();
+                    operacionEnCurso = false;
+                    if (exito) {
+                        String urlPages = generarURLGitHubPages(repositorioGuardado);
+                        mostrarAlerta("Éxito",
+                                "Despliegue completado!\n\n"
+                                + "Tu sitio estará disponible en:\n" + urlPages + "\n\n"
+                                + "Se actualizará en 1-2 minutos");
+                        if (onSuccess != null) {
+                            onSuccess.run();
+                        }
+                    } else {
+                        mostrarAlerta("Error", "Falló el despliegue a GitHub");
+                        if (onError != null) {
+                            onError.run();
+                        }
                     }
                 }
             });
@@ -439,16 +620,66 @@ public class ControladorGit {
 
         task.setOnFailed(e -> {
             Platform.runLater(() -> {
-                mostrarAlerta("Error", "Error durante el despliegue: " + task.getException().getMessage());
-                if (onError != null) {
-                    onError.run();
+                if (!fueCanceladoPorUsuario[0]) {
+                    dialogProgreso.close();
+                    operacionEnCurso = false;
+                    mostrarAlerta("Error", "Error durante el despliegue: " + task.getException().getMessage());
+                    if (onError != null) {
+                        onError.run();
+                    }
                 }
             });
         });
 
+        task.setOnCancelled(e -> {
+            Platform.runLater(() -> {
+                // SOLO mostrar cancelación si fue cancelado por usuario
+                if (fueCanceladoPorUsuario[0]) {
+                    dialogProgreso.close();
+                    operacionEnCurso = false;
+                    System.out.println("✅ Task cancelado exitosamente por usuario");
+                    mostrarAlerta("Cancelado", "El despliegue ha sido cancelado");
+                }
+            });
+        });
+
+        // INICIAR EL THREAD
         Thread thread = new Thread(task);
         thread.setDaemon(true);
         thread.start();
+    }
+
+    /**
+     * Método auxiliar para actualizar el estado en el diálogo de progreso
+     */
+    private void actualizarEstado(String estado, String detalle, Label labelEstado, Label labelDetalle) {
+        Platform.runLater(() -> {
+            if (labelEstado != null) {
+                labelEstado.setText(estado);
+
+                // Cambiar color según el estado
+                if (estado.contains("Error") || estado.contains("Falló")) {
+                    labelEstado.setStyle("-fx-font-size: 14px; -fx-text-fill: #d32f2f; -fx-font-weight: bold;");
+                } else if (estado.contains("completado") || estado.contains("Éxito")) {
+                    labelEstado.setStyle("-fx-font-size: 14px; -fx-text-fill: #2E8B57; -fx-font-weight: bold;");
+                } else {
+                    labelEstado.setStyle("-fx-font-size: 14px; -fx-text-fill: #333; -fx-font-weight: bold;");
+                }
+            }
+
+            if (labelDetalle != null) {
+                labelDetalle.setText(detalle);
+
+                if (detalle.contains("Error") || detalle.contains("falló")) {
+                    labelDetalle.setStyle("-fx-font-size: 12px; -fx-text-fill: #d32f2f;");
+                } else {
+                    labelDetalle.setStyle("-fx-font-size: 12px; -fx-text-fill: #666;");
+                }
+            }
+
+            // También imprimir en consola para debugging
+            System.out.println("ESTADO: " + estado + " - " + detalle);
+        });
     }
 
     /**
@@ -535,11 +766,17 @@ public class ControladorGit {
 
             if (url.startsWith("https://github.com/") && url.endsWith(".git")) {
                 guardarRepositorio(clazz, url);
-                ejecutarDespliegueEnBackground(clazz, carpetaADesplegar, nombreProyecto, url, onSuccess, onError);
+                // Crear el diálogo y pasarlo como parámetro
+                Dialog<Boolean> dialogProgreso = crearDialogoProgreso();
+                dialogProgreso.show();
+                ejecutarDespliegueEnBackground(clazz, carpetaADesplegar, nombreProyecto, url, dialogProgreso, onSuccess, onError);
             } else if (url.startsWith("https://github.com/")) {
                 String urlConGit = url + ".git";
                 guardarRepositorio(clazz, urlConGit);
-                ejecutarDespliegueEnBackground(clazz, carpetaADesplegar, nombreProyecto, urlConGit, onSuccess, onError);
+                // Crear el diálogo y pasarlo como parámetro
+                Dialog<Boolean> dialogProgreso = crearDialogoProgreso();
+                dialogProgreso.show();
+                ejecutarDespliegueEnBackground(clazz, carpetaADesplegar, nombreProyecto, urlConGit, dialogProgreso, onSuccess, onError);
             } else {
                 mostrarAlerta("URL Invalida",
                         "La URL debe ser de GitHub.\nEjemplo: https://github.com/tu-usuario/tu-repositorio");
@@ -582,8 +819,9 @@ public class ControladorGit {
         Dialog<Boolean> dialog = new Dialog<>();
         dialog.setTitle("Desplegando a GitHub");
         dialog.setHeaderText("Desplegando tu catálogo a GitHub Pages...");
+        dialog.setResizable(true);
 
-        // Botón de cancelar
+        // SOLO agregar el botón cancelar - la lógica estará en ejecutarDespliegueEnBackground
         ButtonType cancelButtonType = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
         dialog.getDialogPane().getButtonTypes().add(cancelButtonType);
 
@@ -591,31 +829,26 @@ public class ControladorGit {
         VBox contenido = new VBox(15);
         contenido.setPadding(new Insets(20));
         contenido.setAlignment(Pos.CENTER);
+        contenido.setPrefWidth(400);
 
-        // Indicador de progreso
         ProgressIndicator progressIndicator = new ProgressIndicator();
         progressIndicator.setPrefSize(60, 60);
         progressIndicator.setStyle("-fx-progress-color: #2E8B57;");
 
-        // Etiquetas de estado
         Label labelEstado = new Label("Preparando despliegue...");
-        labelEstado.setStyle("-fx-font-size: 14px; -fx-text-fill: #333;");
+        labelEstado.setStyle("-fx-font-size: 14px; -fx-text-fill: #333; -fx-font-weight: bold;");
+        labelEstado.setAlignment(Pos.CENTER);
+        labelEstado.setMaxWidth(Double.MAX_VALUE);
 
         Label labelDetalle = new Label("Esto puede tomar unos minutos");
         labelDetalle.setStyle("-fx-font-size: 12px; -fx-text-fill: #666;");
+        labelDetalle.setAlignment(Pos.CENTER);
+        labelDetalle.setMaxWidth(Double.MAX_VALUE);
+        labelDetalle.setWrapText(true);
 
         contenido.getChildren().addAll(progressIndicator, labelEstado, labelDetalle);
         dialog.getDialogPane().setContent(contenido);
 
-        // Configurar botón cancelar
-        Button cancelButton = (Button) dialog.getDialogPane().lookupButton(cancelButtonType);
-        cancelButton.setOnAction(e -> {
-            dialog.setResult(false);
-            dialog.close();
-            mostrarAlerta("Cancelado", "El despliegue ha sido cancelado.");
-        });
-
-        // Hacer que la ventana sea modal
         dialog.initModality(Modality.APPLICATION_MODAL);
 
         return dialog;
@@ -624,12 +857,19 @@ public class ControladorGit {
     public void desplegarAGitHubPagesAsync(Class<?> clazz, File carpetaADesplegar, String nombreProyecto,
             Runnable onSuccess, Runnable onError) {
 
+        if (operacionEnCurso) {
+            mostrarAlerta("Operación en curso", "Ya hay un despliegue en proceso. Espera a que termine.");
+            return;
+        }
+
         if (!carpetaADesplegar.exists()) {
             Platform.runLater(() -> mostrarAlerta("Error", "La carpeta '" + carpetaADesplegar.getName() + "' no existe"));
             return;
         }
 
-        // Crear diálogo de progreso
+        operacionEnCurso = true;
+
+        // SOLO CREAR EL DIÁLOGO AQUÍ - NO en ejecutarDespliegueEnBackground
         Dialog<Boolean> dialogProgreso = crearDialogoProgreso();
 
         String repositorioGuardado = obtenerRepositorioGuardado(clazz);
@@ -638,6 +878,7 @@ public class ControladorGit {
             Platform.runLater(() -> {
                 dialogProgreso.close();
                 preguntarConfiguracionRepositorio(clazz, carpetaADesplegar, nombreProyecto, onSuccess, onError);
+                operacionEnCurso = false;
             });
             return;
         }
@@ -659,23 +900,32 @@ public class ControladorGit {
                 if (resultado.get() == btnUsar) {
                     // Mostrar diálogo de progreso y ejecutar
                     dialogProgreso.show();
+                    // PASA el diálogo como parámetro para evitar crear otro
                     ejecutarDespliegueEnBackground(clazz, carpetaADesplegar, nombreProyecto, repositorioGuardado,
+                            dialogProgreso, // ← AÑADE ESTE PARÁMETRO
                             () -> {
+                                operacionEnCurso = false;
                                 dialogProgreso.close();
                                 if (onSuccess != null) {
                                     onSuccess.run();
                                 }
                             },
                             () -> {
+                                operacionEnCurso = false;
                                 dialogProgreso.close();
                                 if (onError != null) {
                                     onError.run();
                                 }
                             });
                 } else if (resultado.get() == btnCambiar) {
+                    operacionEnCurso = false;
                     guardarRepositorio(clazz, "");
                     preguntarConfiguracionRepositorio(clazz, carpetaADesplegar, nombreProyecto, onSuccess, onError);
+                } else {
+                    operacionEnCurso = false;
                 }
+            } else {
+                operacionEnCurso = false;
             }
         });
     }
@@ -697,7 +947,10 @@ public class ControladorGit {
         Optional<ButtonType> resultado = confirmacion.showAndWait();
         if (resultado.isPresent()) {
             if (resultado.get() == btnUsar) {
-                ejecutarDespliegueEnBackground(clazz, carpetaADesplegar, nombreProyecto, urlRepositorio, onSuccess, onError);
+                // Crear el diálogo y pasarlo como parámetro
+                Dialog<Boolean> dialogProgreso = crearDialogoProgreso();
+                dialogProgreso.show();
+                ejecutarDespliegueEnBackground(clazz, carpetaADesplegar, nombreProyecto, urlRepositorio, dialogProgreso, onSuccess, onError);
             } else if (resultado.get() == btnCambiar) {
                 guardarRepositorio(clazz, "");
                 preguntarConfiguracionRepositorio(clazz, carpetaADesplegar, nombreProyecto, onSuccess, onError);
@@ -807,18 +1060,34 @@ public class ControladorGit {
     }
 
     private String obtenerRutaGit() {
-        String rutaGit = "C:\\Program Files\\Git\\bin\\git.exe";
-        File gitExe = new File(rutaGit);
+        // Primero intentar con el PATH del sistema
+        try {
+            ProcessBuilder pb = new ProcessBuilder("git", "--version");
+            pb.redirectErrorStream(true);
+            Process proceso = pb.start();
 
-        if (gitExe.exists()) {
-            return rutaGit;
+            // Leer la salida para verificar
+            BufferedReader reader = new BufferedReader(new InputStreamReader(proceso.getInputStream()));
+            String linea;
+            while ((linea = reader.readLine()) != null) {
+                System.out.println("Git PATH detection: " + linea);
+            }
+
+            if (proceso.waitFor() == 0) {
+                System.out.println("✓ Git encontrado en PATH del sistema");
+                return "git"; // Git está en el PATH
+            }
+        } catch (Exception e) {
+            System.out.println("Git no encontrado en PATH: " + e.getMessage());
         }
 
         String[] posiblesRutas = {
             "C:\\Program Files\\Git\\bin\\git.exe",
             "C:\\Program Files (x86)\\Git\\bin\\git.exe",
-            "C:\\Users\\" + System.getProperty("user.name") + "\\AppData\\Local\\Programs\\Git\\bin\\git.exe",
-            "git.exe"
+            System.getProperty("user.home") + "\\AppData\\Local\\Programs\\Git\\bin\\git.exe",
+            "C:\\Git\\bin\\git.exe",
+            "C:\\Program Files\\Git\\cmd\\git.exe",
+            "C:\\Program Files (x86)\\Git\\cmd\\git.exe"
         };
 
         for (String ruta : posiblesRutas) {
@@ -827,7 +1096,6 @@ public class ControladorGit {
                 return ruta;
             }
         }
-
         return "git";
     }
 
@@ -1098,26 +1366,49 @@ public class ControladorGit {
         return urlOriginal;
     }
 
-    /**
-     * CREDENCIALES
-     */
-    private String[] obtenerCredencialesGuardadas(Class<?> clazz) {
-        try {
-            Preferences prefs = Preferences.userNodeForPackage(clazz);
-            String usuario = prefs.get("github_username", "");
-            String token = prefs.get("github_token", "");
-            return new String[]{usuario, token};
-        } catch (Exception e) {
-            return new String[]{"", ""};
-        }
-    }
 
     private void guardarCredenciales(Class<?> clazz, String usuario, String token) {
         try {
             Preferences prefs = Preferences.userNodeForPackage(clazz);
+            
             prefs.put("github_username", usuario);
-            prefs.put("github_token", token);
+            
+            if (token != null && !token.trim().isEmpty()) {
+                String tokenEncriptado = ControladorEncriptar.encrypt(token.trim());
+                prefs.put("github_token_encrypted", tokenEncriptado);
+            } else {
+                prefs.remove("github_token_encrypted");
+            }
+            
         } catch (Exception e) {
+            System.err.println("Error guardando credenciales: " + e.getMessage());
+        }
+    }
+    
+    private String[] obtenerCredencialesGuardadas(Class<?> clazz) {
+        try {
+            Preferences prefs = Preferences.userNodeForPackage(clazz);
+            String usuario = prefs.get("github_username", "");
+            
+            // Intentar obtener token encriptado primero
+            String tokenEncriptado = prefs.get("github_token_encrypted", "");
+            String token = "";
+            
+            if (!tokenEncriptado.isEmpty()) {
+                token = ControladorEncriptar.decrypt(tokenEncriptado);
+            } else {
+                token = prefs.get("github_token", "");
+                if (!token.isEmpty()) {
+                    guardarCredenciales(clazz, usuario, token);
+                    prefs.remove("github_token"); 
+                }
+            }
+            
+            return new String[]{usuario, token};
+            
+        } catch (Exception e) {
+            System.err.println("Error obteniendo credenciales: " + e.getMessage());
+            return new String[]{"", ""};
         }
     }
 

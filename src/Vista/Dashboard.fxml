@@ -29,8 +29,8 @@
                 <Label styleClass="header-title" text="🏪 Impulsa360" />
                 <Label fx:id="lblUsuario" styleClass="header-subtitle" />
                 <Region HBox.hgrow="ALWAYS" />
+                <ToggleButton layoutX="10" layoutY="10" onAction="#editarDatosUsuario" styleClass="btn-secondary" stylesheets="@styles.css" text="👤 Editar Datos" />
                 <Button onAction="#cerrarSesion" styleClass="btn-logout" text="Cerrar Sesión" />
-                <ToggleButton fx:id="btnTema" layoutX="10" layoutY="10" styleClass="switch-tema" text="🌙" />
             </HBox>
             <Separator />
         </VBox>
@@ -77,7 +77,9 @@
                     </TableView>
                     
                     <!-- Botones de acción -->
-                    <HBox alignment="CENTER_RIGHT" spacing="10">
+                    <HBox alignment="CENTER_RIGHT" prefHeight="36.0" prefWidth="838.0" spacing="10">
+                  <Button mnemonicParsing="false" onAction="#verHistoricoProducto" styleClass="btn-historial" text="⏪ Ver Historial Producto" />
+                  <Button mnemonicParsing="false" onAction="#generarReporteInventario" styleClass="btn-reporte" text="📈 Ver Reporte" />
                         <Button fx:id="btnEditar" onAction="#editarProducto" styleClass="btn-primary" text="✏ Editar Producto Seleccionado" />
                         <Button fx:id="btnEliminar" onAction="#eliminarProducto" styleClass="btn-danger" text="🗑 Eliminar Producto Seleccionado" />
                     </HBox>

@@ -11,9 +11,12 @@ import Modelo.*;
 import java.io.File;
 import java.io.InputStream;
 import java.net.URL;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.ResourceBundle;
+import java.util.stream.Collectors;
 import javafx.animation.Animation;
 import javafx.animation.AnimationTimer;
 import javafx.animation.KeyFrame;
@@ -22,9 +25,12 @@ import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
+import javafx.collections.transformation.SortedList;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXMLLoader;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
@@ -34,6 +40,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.ChoiceDialog;
+import javafx.scene.control.Dialog;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
@@ -54,6 +61,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.util.Callback;
@@ -90,10 +98,10 @@ public class ControladorDashboard implements Initializable {
     private Button btnEliminar;
 
     @FXML
-    private TextArea areaCatalogo;
+    private TextField txtBuscar;
 
     @FXML
-    private TableView<Reserva> tablaReservas;
+    private TextArea areaCatalogo;
 
     @FXML
     private VBox contenedorCatalogoVisual;
@@ -106,8 +114,7 @@ public class ControladorDashboard implements Initializable {
     @FXML
     private TableColumn<Producto, Double> colPrecio;
 
-    private ObservableList<Producto> productosData;
-    private ObservableList<Reserva> reservasData;
+    private ObservableList<Producto> productosData = FXCollections.observableArrayList();
     private Usuario usuarioLogueado;
     private boolean editandoProducto = false;
     private Producto productoEditando;
@@ -115,6 +122,9 @@ public class ControladorDashboard implements Initializable {
     private ControladorGit gestorGit;
     @FXML
     Button btnGitHub;
+
+    private FilteredList<Producto> productosFiltrados;
+    private SortedList<Producto> productosOrdenados;
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
@@ -126,10 +136,15 @@ public class ControladorDashboard implements Initializable {
                 }
         );
         gestorGit.limpiarCarpetasTemporalesPendientes();
-        configurarColumnasTablaCompleta();
 
+        productosData = FXCollections.observableArrayList();
+
+        configurarColumnasTablaCompleta();
         configurarResaltadoStockBajo();
         agregarColumnaEdicionRapida();
+        configurarFiltros();
+        configurarBusquedaEnTiempoReal();
+
         animarBorde(btnGitHub);
     }
 
@@ -189,7 +204,7 @@ public class ControladorDashboard implements Initializable {
             String telefono = usuarioLogueado.getTelefono();
 
             if (telefono == null || telefono.trim().isEmpty()) {
-                throw new IllegalStateException("Número de WhatsApp no configurado");
+                throw new IllegalStateException("Numero de WhatsApp no configurado");
             }
 
             telefono = telefono.replaceAll("[^0-9]", "");
@@ -201,23 +216,6 @@ public class ControladorDashboard implements Initializable {
         } catch (Exception e) {
             e.printStackTrace();
             throw new RuntimeException("No se pudo crear enlace de WhatsApp: " + e.getMessage());
-        }
-    }
-
-    private void verificarConfiguracionColumnas() {
-        System.out.println("=== VERIFICANDO CONFIGURACIÓN DE COLUMNAS ===");
-        System.out.println("Número de columnas: " + tablaProductos.getColumns().size());
-
-        for (int i = 0; i < tablaProductos.getColumns().size(); i++) {
-            TableColumn<?, ?> col = tablaProductos.getColumns().get(i);
-            System.out.println("Columna " + i + ": " + col.getText()
-                    + " - CellFactory: " + col.getCellFactory()
-                    + " - CellValueFactory: " + col.getCellValueFactory());
-        }
-        if (productosData != null && !productosData.isEmpty()) {
-            Producto primerProducto = productosData.get(0);
-            System.out.println("Primer producto - Precio: " + primerProducto.getPrecio()
-                    + " - Formateado: " + formatoPesosColombianos(primerProducto.getPrecio()));
         }
     }
 
@@ -247,7 +245,7 @@ public class ControladorDashboard implements Initializable {
         colStock.setCellValueFactory(new PropertyValueFactory<>("cantidadDisponible"));
         colStock.setPrefWidth(163);
 
-        TableColumn<Producto, String> colCategoria = new TableColumn<>("Categoría");
+        TableColumn<Producto, String> colCategoria = new TableColumn<>("Categoria");
         colCategoria.setCellValueFactory(new PropertyValueFactory<>("categoria"));
         colCategoria.setPrefWidth(202);
 
@@ -269,24 +267,6 @@ public class ControladorDashboard implements Initializable {
         }
 
         return resultado.toString();
-    }
-
-    private void configurarColumnasTabla() {
-        if (colPrecio != null) {
-            colPrecio.setCellFactory(column -> new TableCell<Producto, Double>() {
-                @Override
-                protected void updateItem(Double precio, boolean empty) {
-                    super.updateItem(precio, empty);
-                    if (empty || precio == null) {
-                        setText(null);
-                    } else {
-                        setText(formatoPesosColombianos(precio));
-                    }
-                }
-            });
-        } else {
-            System.err.println("❌ colPrecio es null - verifica el fx:id en el FXML");
-        }
     }
 
     private String formatoPesosColombianos(double precio) {
@@ -352,13 +332,187 @@ public class ControladorDashboard implements Initializable {
                 productosData.clear();
                 productosData.addAll(ControladorBD.obtenerProductosPorUsuario(usuarioLogueado.getId()));
 
-                tablaProductos.setItems(productosData);
-                tablaProductos.refresh();
-
                 verificarStockBajo();
             } catch (Exception e) {
                 mostrarAlerta("Error", "No se pudieron cargar los productos: " + e.getMessage());
             }
+        }
+    }
+
+    @FXML
+    private void generarReporteInventario() {
+        if (productosData == null || productosData.isEmpty()) {
+            mostrarAlerta("Reporte", "No hay productos en el inventario");
+            return;
+        }
+
+        int totalProductos = productosData.size();
+        int sinStock = (int) productosData.stream()
+                .filter(p -> p.getCantidadDisponible() == 0)
+                .count();
+        int stockBajo = (int) productosData.stream()
+                .filter(p -> p.getCantidadDisponible() > 0 && p.getCantidadDisponible() <= 5)
+                .count();
+        int stockNormal = (int) productosData.stream()
+                .filter(p -> p.getCantidadDisponible() > 5)
+                .count();
+
+        double valorTotal = productosData.stream()
+                .mapToDouble(p -> p.getPrecio() * p.getCantidadDisponible())
+                .sum();
+
+        // ==================== CALCULOS AVANZADOS ====================
+        // Productos mas caro y mas barato
+        Producto masCaro = productosData.stream()
+                .max(Comparator.comparing(Producto::getPrecio))
+                .orElse(null);
+        Producto masBarato = productosData.stream()
+                .min(Comparator.comparing(Producto::getPrecio))
+                .orElse(null);
+
+        // Producto con mas unidades en stock
+        Producto masStock = productosData.stream()
+                .max(Comparator.comparing(Producto::getCantidadDisponible))
+                .orElse(null);
+
+        // Categorias mas populares
+        Map<String, Long> productosPorCategoria = productosData.stream()
+                .filter(p -> p.getCategoria() != null && !p.getCategoria().isEmpty())
+                .collect(Collectors.groupingBy(Producto::getCategoria, Collectors.counting()));
+
+        // Valor por categoria
+        Map<String, Double> valorPorCategoria = productosData.stream()
+                .filter(p -> p.getCategoria() != null && !p.getCategoria().isEmpty())
+                .collect(Collectors.groupingBy(
+                        Producto::getCategoria,
+                        Collectors.summingDouble(p -> p.getPrecio() * p.getCantidadDisponible())
+                ));
+
+        List<Producto> topProductosValor = productosData.stream()
+                .sorted(Comparator.comparingDouble(p -> -(p.getPrecio() * p.getCantidadDisponible())))
+                .limit(5)
+                .collect(Collectors.toList());
+
+        List<Producto> oportunidades = productosData.stream()
+                .filter(p -> p.getCantidadDisponible() <= 3 && p.getPrecio() > 0)
+                .sorted(Comparator.comparingDouble(Producto::getPrecio).reversed())
+                .limit(5)
+                .collect(Collectors.toList());
+
+        double porcentajeProblemas = totalProductos > 0
+                ? ((double) (sinStock + stockBajo) / totalProductos) * 100 : 0;
+
+        double precioPromedio = productosData.stream()
+                .mapToDouble(Producto::getPrecio)
+                .average()
+                .orElse(0);
+
+        StringBuilder reporte = new StringBuilder();
+
+        reporte.append("REPORTE COMPLETO DE INVENTARIO\n\n");
+
+        reporte.append("INFORMACION GENERAL:\n");
+        reporte.append("   - Total de productos: ").append(totalProductos).append("\n");
+        reporte.append("   - Valor total del inventario: $").append(String.format("%,.0f", valorTotal)).append("\n");
+        reporte.append("   - Precio promedio: $").append(String.format("%,.0f", precioPromedio)).append("\n");
+        reporte.append("   - Nivel de eficiencia: ").append(String.format("%.1f", 100 - porcentajeProblemas)).append("%\n\n");
+
+        reporte.append("ESTADO DE STOCK:\n");
+        reporte.append("   - Stock normal: ").append(stockNormal).append(" productos\n");
+        reporte.append("   - Stock bajo: ").append(stockBajo).append(" productos\n");
+        reporte.append("   - Sin stock: ").append(sinStock).append(" productos\n\n");
+
+        reporte.append("PRODUCTOS DESTACADOS:\n");
+        if (masCaro != null) {
+            reporte.append("   - Producto mas caro: ").append(masCaro.getNombre())
+                    .append(" - $").append(String.format("%,.0f", masCaro.getPrecio())).append("\n");
+        }
+        if (masBarato != null) {
+            reporte.append("   - Producto mas economico: ").append(masBarato.getNombre())
+                    .append(" - $").append(String.format("%,.0f", masBarato.getPrecio())).append("\n");
+        }
+        if (masStock != null && masStock.getCantidadDisponible() > 0) {
+            reporte.append("   - Producto con mas stock: ").append(masStock.getNombre())
+                    .append(" - ").append(masStock.getCantidadDisponible()).append(" unidades\n");
+        }
+        reporte.append("\n");
+
+        if (!productosPorCategoria.isEmpty()) {
+            reporte.append("DISTRIBUCION POR CATEGORIA:\n");
+            productosPorCategoria.entrySet().stream()
+                    .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                    .forEach(entry -> {
+                        String categoria = entry.getKey();
+                        long cantidad = entry.getValue();
+                        double valor = valorPorCategoria.getOrDefault(categoria, 0.0);
+                        reporte.append("   - ").append(categoria)
+                                .append(": ").append(cantidad).append(" productos")
+                                .append(" ($").append(String.format("%,.0f", valor)).append(")\n");
+                    });
+            reporte.append("\n");
+        }
+
+        if (!topProductosValor.isEmpty()) {
+            reporte.append("TOP 5 PRODUCTOS POR VALOR EN INVENTARIO:\n");
+            for (int i = 0; i < topProductosValor.size(); i++) {
+                Producto p = topProductosValor.get(i);
+                double valor = p.getPrecio() * p.getCantidadDisponible();
+                reporte.append("   ").append(i + 1).append(". ").append(p.getNombre())
+                        .append(" - $").append(String.format("%,.0f", valor))
+                        .append(" (").append(p.getCantidadDisponible()).append(" unidades)\n");
+            }
+            reporte.append("\n");
+        }
+
+        reporte.append("RECOMENDACIONES:\n");
+
+        if (!oportunidades.isEmpty()) {
+            reporte.append("   PRODUCTOS ESTRATEGICOS CON STOCK BAJO:\n");
+            oportunidades.forEach(p
+                    -> reporte.append("      - ").append(p.getNombre())
+                            .append(" - Solo ").append(p.getCantidadDisponible())
+                            .append(" unidades - $").append(String.format("%,.0f", p.getPrecio())).append(" c/u\n")
+            );
+        }
+
+        if (sinStock > 0) {
+            reporte.append("   ").append(sinStock).append(" PRODUCTOS AGOTADOS\n");
+            reporte.append("      Considera reponer stock pronto\n");
+        }
+
+        if (porcentajeProblemas > 30) {
+            reporte.append("   ALERTA: ").append(String.format("%.1f", porcentajeProblemas))
+                    .append("% de productos necesitan atencion inmediata\n");
+        } else if (porcentajeProblemas > 0) {
+            reporte.append("   ").append(String.format("%.1f", porcentajeProblemas))
+                    .append("% de productos necesitan revision\n");
+        } else {
+            reporte.append("   Excelente! Todo el inventario esta en buen estado\n");
+        }
+
+        TextArea textArea = new TextArea(reporte.toString());
+        textArea.setEditable(false);
+        textArea.setWrapText(true);
+        textArea.setPrefSize(650, 550);
+        textArea.setStyle("-fx-font-family: 'Arial'; -fx-font-size: 14px; -fx-font-weight: normal;");
+
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Reporte Completo de Inventario");
+        alert.setHeaderText("Analisis General del Inventario");
+        alert.getDialogPane().setContent(textArea);
+        alert.getDialogPane().setPrefSize(700, 600);
+        alert.getDialogPane().setStyle("-fx-font-size: 14px;");
+
+        ButtonType copiarButton = new ButtonType("Copiar Reporte");
+        ButtonType cerrarButton = new ButtonType("Cerrar", ButtonBar.ButtonData.CANCEL_CLOSE);
+        alert.getButtonTypes().setAll(copiarButton, cerrarButton);
+
+        Optional<ButtonType> result = alert.showAndWait();
+        if (result.isPresent() && result.get() == copiarButton) {
+            ClipboardContent content = new ClipboardContent();
+            content.putString(reporte.toString());
+            Clipboard.getSystemClipboard().setContent(content);
+            mostrarAlerta("Exito", "Reporte copiado al portapapeles");
         }
     }
 
@@ -370,7 +524,7 @@ public class ControladorDashboard implements Initializable {
 
                 setStyle("");
                 if (getTableView() != null) {
-                    getTableView().setStyle(""); // Limpiar estilos de la tabla
+                    getTableView().setStyle("");
                 }
 
                 if (producto == null || empty) {
@@ -380,11 +534,11 @@ public class ControladorDashboard implements Initializable {
                 int stock = producto.getCantidadDisponible();
 
                 if (stock <= 1) {
-                    setStyle("-fx-background-color: #d41515; -fx-border-color: #b01515; -fx-border-width: 0 0 1 0; -fx-font-weight: bold; -fx-text-fill: white;");
+                    setStyle("-fx-background-color: #e88080; -fx-border-color: #b01515; -fx-border-width: 0 0 1 0; -fx-font-weight: bold;");
                 } else if (stock <= 3) {
-                    setStyle("-fx-background-color: #fc7703; -fx-border-color: #b35e14; -fx-border-width: 0 0 1 0; -fx-font-weight: bold; -fx-text-fill: white;");
+                    setStyle("-fx-background-color: #ebae59; -fx-border-color: #b35e14; -fx-border-width: 0 0 1 0; -fx-font-weight: bold;");
                 } else if (stock <= 5) {
-                    setStyle("-fx-background-color: #fff9c4; -fx-border-color: #fbc02d; -fx-border-width: 0 0 1 0; -fx-text-fill: black;");
+                    setStyle("-fx-background-color: #deeb59; -fx-border-color: #fbc02d; -fx-border-width: 0 0 1 0;");
                 }
             }
         });
@@ -420,6 +574,25 @@ public class ControladorDashboard implements Initializable {
         limpiarFormulario();
     }
 
+    private void registrarCambiosEdicion(Producto producto, int nuevoStock) {
+        int stockAnterior = producto.getCantidadDisponible();
+
+        if (nuevoStock != stockAnterior) {
+            int cambio = nuevoStock - stockAnterior;
+            String tipoMovimiento = cambio > 0 ? "ENTRADA" : "SALIDA";
+            String observaciones = "Edicion de producto - Stock: " + stockAnterior + " → " + nuevoStock;
+
+            ControladorBD.registrarMovimiento(
+                    producto.getId(),
+                    tipoMovimiento,
+                    Math.abs(cambio),
+                    stockAnterior,
+                    nuevoStock,
+                    observaciones
+            );
+        }
+    }
+
     @FXML
     private void guardarProducto() {
         try {
@@ -442,7 +615,7 @@ public class ControladorDashboard implements Initializable {
                 return;
             }
             if (categoria.isEmpty()) {
-                mostrarAlerta("Error", "La categoría es obligatoria");
+                mostrarAlerta("Error", "La categoria es obligatoria");
                 return;
             }
 
@@ -463,6 +636,7 @@ public class ControladorDashboard implements Initializable {
             Producto producto;
             if (editandoProducto) {
                 producto = productoEditando;
+                registrarCambiosEdicion(producto, stock);
 
                 producto.setNombre(nombre);
                 producto.setDescripcion(descripcion);
@@ -473,7 +647,7 @@ public class ControladorDashboard implements Initializable {
                 boolean exito = ControladorBD.actualizarProducto(producto);
 
                 if (exito) {
-                    mostrarAlerta("Éxito", "Producto actualizado correctamente");
+                    mostrarAlerta("Exito", "Producto actualizado correctamente");
                     tablaProductos.refresh();
                 } else {
                     mostrarAlerta("Error", "No se pudo actualizar el producto");
@@ -484,7 +658,7 @@ public class ControladorDashboard implements Initializable {
                 boolean exito = ControladorBD.agregarProducto(producto);
 
                 if (exito) {
-                    mostrarAlerta("Éxito", "Producto agregado correctamente");
+                    mostrarAlerta("Exito", "Producto agregado correctamente");
                     btnAgregar.setDisable(false);
                     btnEditar.setDisable(false);
                     btnEliminar.setDisable(false);
@@ -502,10 +676,56 @@ public class ControladorDashboard implements Initializable {
             generarCatalogo();
 
         } catch (NumberFormatException e) {
-            mostrarAlerta("Error", "Formato de precio inválido. Use: 100000 o 100.000");
+            mostrarAlerta("Error", "Formato de precio invalido. Use: 100000 o 100.000");
         } catch (Exception e) {
             mostrarAlerta("Error", "Error inesperado: " + e.getMessage());
         }
+    }
+
+    private void configurarBusquedaEnTiempoReal() {
+        txtBuscar.textProperty().addListener((observable, oldValue, newValue) -> {
+            buscarProductos();
+        });
+
+        txtBuscar.setOnAction(e -> buscarProductos());
+    }
+
+    private void configurarFiltros() {
+        productosFiltrados = new FilteredList<>(productosData, p -> true);
+        productosOrdenados = new SortedList<>(productosFiltrados);
+        productosOrdenados.comparatorProperty().bind(tablaProductos.comparatorProperty());
+        tablaProductos.setItems(productosOrdenados);
+    }
+
+    @FXML
+    private void buscarProductos() {
+        String texto = txtBuscar.getText().toLowerCase().trim();
+
+        productosFiltrados.setPredicate(producto -> {
+            if (texto == null || texto.isEmpty()) {
+                return true;
+            }
+
+            String lowerCaseFilter = texto.toLowerCase();
+
+            if (producto.getNombre().toLowerCase().contains(lowerCaseFilter)) {
+                return true;
+            } else if (producto.getCategoria() != null
+                    && producto.getCategoria().toLowerCase().contains(lowerCaseFilter)) {
+                return true;
+            } else if (producto.getDescripcion() != null
+                    && producto.getDescripcion().toLowerCase().contains(lowerCaseFilter)) {
+                return true;
+            }
+
+            return false;
+        });
+    }
+
+    @FXML
+    private void limpiarBusqueda() {
+        txtBuscar.clear();
+        productosFiltrados.setPredicate(null);
     }
 
     private void agregarColumnaEdicionRapida() {
@@ -549,18 +769,28 @@ public class ControladorDashboard implements Initializable {
     }
 
     private void actualizarStockRapido(Producto producto, int cambio) {
-        int nuevoStock = producto.getCantidadDisponible() + cambio;
+        int stockAnterior = producto.getCantidadDisponible();
+        int nuevoStock = stockAnterior + cambio;
 
         if (nuevoStock < 0) {
             mostrarAlerta("Error", "No puede quedar stock negativo");
             return;
         }
 
-        producto.setCantidadDisponible(nuevoStock);
         boolean exito = ControladorBD.actualizarStockProducto(producto.getId(), nuevoStock);
 
         if (exito) {
+            producto.setCantidadDisponible(nuevoStock);
             tablaProductos.refresh();
+            configurarResaltadoStockBajo();
+
+            String tipoMovimiento = cambio > 0 ? "ENTRADA" : "SALIDA";
+            String observaciones = cambio > 0 ? "Ajuste manual +" + cambio : "Ajuste manual " + cambio;
+
+            ControladorBD.registrarMovimiento(
+                    producto.getId(), tipoMovimiento, Math.abs(cambio),
+                    stockAnterior, nuevoStock, observaciones
+            );
         } else {
             mostrarAlerta("Error", "No se pudo actualizar el stock");
         }
@@ -568,7 +798,7 @@ public class ControladorDashboard implements Initializable {
 
     private double convertirPrecioTextoANumero(String precioText) {
         if (precioText == null || precioText.trim().isEmpty()) {
-            throw new NumberFormatException("Precio vacío");
+            throw new NumberFormatException("Precio vacio");
         }
         String textoLimpio = precioText.trim();
         textoLimpio = textoLimpio.replace("$", "").replace("€", "").replace("COP", "").trim();
@@ -576,10 +806,9 @@ public class ControladorDashboard implements Initializable {
         if (textoLimpio.toUpperCase().contains("E")) {
             try {
                 double resultado = Double.parseDouble(textoLimpio);
-                System.out.println("🔍 NOTACIÓN CIENTÍFICA → " + resultado);
                 return resultado;
             } catch (NumberFormatException e) {
-                throw new NumberFormatException("Formato científico inválido: " + textoLimpio);
+                throw new NumberFormatException("Formato cientifico invalido: " + textoLimpio);
             }
         }
 
@@ -597,13 +826,11 @@ public class ControladorDashboard implements Initializable {
             }
         }
 
-        System.out.println("🔍 TEXTO LIMPIO: '" + textoLimpio + "'");
-
         try {
             double resultado = Double.parseDouble(textoLimpio);
             return resultado;
         } catch (NumberFormatException e) {
-            throw new NumberFormatException("Formato inválido: '" + precioText + "' → '" + textoLimpio + "'");
+            throw new NumberFormatException("Formato invalido: '" + precioText + "' → '" + textoLimpio + "'");
         }
     }
 
@@ -614,7 +841,7 @@ public class ControladorDashboard implements Initializable {
                 String catalogo = ControladorCatalogo.GenerarCatalogo(productosData);
                 areaCatalogo.setText(catalogo);
             } catch (Exception e) {
-                areaCatalogo.setText("Error generando catálogo: " + e.getMessage());
+                areaCatalogo.setText("Error generando catalogo: " + e.getMessage());
             }
         } else {
             areaCatalogo.setText("No hay productos para mostrar o usuario no logueado");
@@ -637,7 +864,7 @@ public class ControladorDashboard implements Initializable {
 
                 tempFile.delete();
 
-                mostrarAlerta("Éxito", "Catálogo visual copiado al portapapeles como imagen!\n\nPuedes pegarlo en cualquier aplicación que soporte imágenes.");
+                mostrarAlerta("Exito", "Catalogo visual copiado al portapapeles como imagen!\n\nPuedes pegarlo en cualquier aplicacion que soporte imagenes.");
 
             } else if (areaCatalogo.getText() != null && !areaCatalogo.getText().trim().isEmpty()) {
                 String catalogo = areaCatalogo.getText();
@@ -645,13 +872,138 @@ public class ControladorDashboard implements Initializable {
                 ClipboardContent content = new ClipboardContent();
                 content.putString(catalogo);
                 clipboard.setContent(content);
-                mostrarAlerta("Éxito", "Catalogo de texto copiado al portapapeles\n\n¡Ahora peguelo en WhatsApp!");
+                mostrarAlerta("Exito", "Catalogo de texto copiado al portapapeles\n\n¡Ahora peguelo en WhatsApp!");
             } else {
                 mostrarAlerta("Error", "No hay catalogo para copiar. Genere el catalogo primero.");
             }
 
         } catch (Exception e) {
             mostrarAlerta("Error", "No se pudo copiar: " + e.getMessage());
+        }
+    }
+
+    private String generarEstadisticasHistorial(ObservableList<MovimientoInventario> historico) {
+        if (historico.isEmpty()) {
+            return "";
+        }
+
+        long totalEntradas = historico.stream()
+                .filter(m -> m.getTipoMovimiento().equals("ENTRADA") || m.getTipoMovimiento().equals("ENTRADA_INICIAL"))
+                .count();
+
+        long totalSalidas = historico.stream()
+                .filter(m -> m.getTipoMovimiento().equals("SALIDA"))
+                .count();
+
+        int ultimoStock = historico.get(0).getCantidadNueva(); // El mas reciente
+
+        return String.format(
+                "📈 Estadisticas: %d Entradas | %d Salidas | 📦 Stock actual: %d unidades",
+                totalEntradas, totalSalidas, ultimoStock
+        );
+    }
+
+    private void copiarHistorialPortapapeles(ObservableList<MovimientoInventario> historico, String nombreProducto) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("HISTORIAL DE MOVIMIENTOS - ").append(nombreProducto).append("\n\n");
+        sb.append("Fecha y Hora\t\tTipo\t\tCambio\tAnterior\tNuevo\tObservaciones\n");
+        sb.append("───────────────────────────────────────────────────────────────────────────────────\n");
+
+        for (MovimientoInventario movimiento : historico) {
+            sb.append(movimiento.getFechaFormateada()).append("\t")
+                    .append(movimiento.getTipoMovimientoFormateado()).append("\t")
+                    .append(movimiento.getCambioFormateado()).append("\t")
+                    .append(movimiento.getCantidadAnterior()).append("\t\t")
+                    .append(movimiento.getCantidadNueva()).append("\t")
+                    .append(movimiento.getObservaciones()).append("\n");
+        }
+
+        ClipboardContent content = new ClipboardContent();
+        content.putString(sb.toString());
+        Clipboard.getSystemClipboard().setContent(content);
+
+        mostrarAlerta("Exito", "Historial copiado al portapapeles");
+    }
+
+    private void mostrarHistoricoEnDialogo(Producto producto) {
+        ObservableList<MovimientoInventario> historico
+                = ControladorBD.obtenerHistoricoProducto(producto.getId());
+
+        if (historico.isEmpty()) {
+            mostrarAlerta("Historico", "No hay movimientos registrados para: " + producto.getNombre());
+            return;
+        }
+
+        // ✅ TABLA MAS GRANDE
+        TableView<MovimientoInventario> tablaHistorico = new TableView<>();
+        tablaHistorico.setPrefSize(900, 500); // ✅ Mas ancha y alta
+
+        // ✅ COLUMNAS MAS ANCHAS
+        TableColumn<MovimientoInventario, String> colFecha = new TableColumn<>("Fecha y Hora");
+        colFecha.setCellValueFactory(new PropertyValueFactory<>("fechaFormateada"));
+        colFecha.setPrefWidth(180); // ✅ Mas ancha
+
+        TableColumn<MovimientoInventario, String> colTipo = new TableColumn<>("Tipo Movimiento");
+        colTipo.setCellValueFactory(new PropertyValueFactory<>("tipoMovimientoFormateado"));
+        colTipo.setPrefWidth(130);
+
+        TableColumn<MovimientoInventario, String> colCambio = new TableColumn<>("Cambio");
+        colCambio.setCellValueFactory(new PropertyValueFactory<>("cambioFormateado"));
+        colCambio.setPrefWidth(80);
+
+        TableColumn<MovimientoInventario, Integer> colAnterior = new TableColumn<>("Stock Anterior");
+        colAnterior.setCellValueFactory(new PropertyValueFactory<>("cantidadAnterior"));
+        colAnterior.setPrefWidth(100);
+
+        TableColumn<MovimientoInventario, Integer> colNuevo = new TableColumn<>("Stock Nuevo");
+        colNuevo.setCellValueFactory(new PropertyValueFactory<>("cantidadNueva"));
+        colNuevo.setPrefWidth(100);
+
+        TableColumn<MovimientoInventario, String> colObservaciones = new TableColumn<>("Observaciones");
+        colObservaciones.setCellValueFactory(new PropertyValueFactory<>("observaciones"));
+        colObservaciones.setPrefWidth(300); // ✅ Mucho mas ancha
+
+        tablaHistorico.getColumns().addAll(colFecha, colTipo, colCambio, colAnterior, colNuevo, colObservaciones);
+        tablaHistorico.setItems(historico);
+
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Historico Completo de Movimientos");
+        alert.setHeaderText("📊 Historico de: " + producto.getNombre()
+                + "\n📦 Total movimientos: " + historico.size()
+                + "\n🕒 Desde: " + (historico.isEmpty() ? "N/A"
+                : historico.get(historico.size() - 1).getFechaFormateada()));
+
+        VBox contenedor = new VBox(10);
+        contenedor.setPadding(new javafx.geometry.Insets(15));
+        contenedor.setPrefSize(950, 600);
+
+        Label lblEstadisticas = new Label();
+        lblEstadisticas.setStyle("-fx-font-weight: bold; -fx-font-size: 12px;");
+        lblEstadisticas.setText(generarEstadisticasHistorial(historico));
+
+        contenedor.getChildren().addAll(lblEstadisticas, tablaHistorico);
+
+        alert.getDialogPane().setContent(contenedor);
+        alert.getDialogPane().setPrefSize(1000, 650);
+
+        ButtonType copiarButton = new ButtonType("📋 Copiar Historico");
+        ButtonType cerrarButton = new ButtonType("Cerrar", ButtonBar.ButtonData.CANCEL_CLOSE);
+        alert.getButtonTypes().setAll(copiarButton, cerrarButton);
+
+        Optional<ButtonType> result = alert.showAndWait();
+        if (result.isPresent() && result.get() == copiarButton) {
+            copiarHistorialPortapapeles(historico, producto.getNombre());
+        }
+    }
+
+    @FXML
+    private void verHistoricoProducto() {
+        Producto productoSeleccionado = tablaProductos.getSelectionModel().getSelectedItem();
+        if (productoSeleccionado != null) {
+            mostrarHistoricoEnDialogo(productoSeleccionado);
+        } else {
+            mostrarAlerta("Error", "Selecciona un producto para ver su historico");
         }
     }
 
@@ -679,12 +1031,11 @@ public class ControladorDashboard implements Initializable {
         Producto productoSeleccionado = tablaProductos.getSelectionModel().getSelectedItem();
         if (productoSeleccionado != null) {
             Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-            alert.setTitle("Confirmar eliminación");
+            alert.setTitle("Confirmar eliminacion");
             alert.setHeaderText("¿Eliminar producto?");
-            alert.setContentText("¿Estás seguro de eliminar: " + productoSeleccionado.getNombre() + "?\n\n"
-                    + "• Se eliminará de la base de datos\n"
-                    + "• Se eliminarán las reservas asociadas\n"
-                    + "• Esta acción no se puede deshacer");
+            alert.setContentText("¿Estas seguro de eliminar: " + productoSeleccionado.getNombre() + "?\n\n"
+                    + "• Se eliminara de la base de datos\n"
+                    + "• Esta accion no se puede deshacer");
 
             if (alert.showAndWait().get() == ButtonType.OK) {
                 try {
@@ -694,7 +1045,7 @@ public class ControladorDashboard implements Initializable {
                         productosData.remove(productoSeleccionado);
                         tablaProductos.refresh();
                         generarCatalogo();
-                        mostrarAlerta("Éxito", "✅ Producto eliminado completamente: " + productoSeleccionado.getNombre());
+                        mostrarAlerta("Exito", "✅ Producto eliminado completamente: " + productoSeleccionado.getNombre());
                     } else {
                         mostrarAlerta("Error", "❌ No se pudo eliminar el producto");
                     }
@@ -719,9 +1070,9 @@ public class ControladorDashboard implements Initializable {
     private void cerrarSesion() {
         try {
             Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-            alert.setTitle("Cerrar sesión");
-            alert.setHeaderText("¿Cerrar sesión?");
-            alert.setContentText("¿Estás seguro de que quieres salir?");
+            alert.setTitle("Cerrar sesion");
+            alert.setHeaderText("¿Cerrar sesion?");
+            alert.setContentText("¿Estas seguro de que quieres salir?");
 
             if (alert.showAndWait().get() == ButtonType.OK) {
                 FXMLLoader loader = new FXMLLoader(getClass().getResource("/Vista/Login.fxml"));
@@ -738,7 +1089,7 @@ public class ControladorDashboard implements Initializable {
                 stage.setScene(scene);
 
                 stage.centerOnScreen();
-                stage.setTitle("Iniciar Sesión - Impulsa360");
+                stage.setTitle("Iniciar Sesion - Impulsa360");
 
                 Platform.runLater(() -> {
                     stage.setWidth(380);
@@ -746,7 +1097,7 @@ public class ControladorDashboard implements Initializable {
                 });
             }
         } catch (Exception e) {
-            mostrarAlerta("Error", "No se pudo cerrar la sesión: " + e.getMessage());
+            mostrarAlerta("Error", "No se pudo cerrar la sesion: " + e.getMessage());
         }
     }
 
@@ -780,7 +1131,7 @@ public class ControladorDashboard implements Initializable {
             List<Producto> productos = ControladorBD.obtenerProductosPorUsuario(usuarioLogueado.getId());
 
             if (productos.isEmpty()) {
-                Label lblVacio = new Label("No hay productos en tu catálogo");
+                Label lblVacio = new Label("No hay productos en tu catalogo");
                 lblVacio.setStyle("-fx-text-fill: #666; -fx-font-size: 14; -fx-padding: 20;");
                 contenedorCatalogoVisual.getChildren().add(lblVacio);
                 return;
@@ -812,13 +1163,13 @@ public class ControladorDashboard implements Initializable {
             contenedorCatalogoVisual.getChildren().add(gridProductos);
 
             Alert alert = new Alert(Alert.AlertType.INFORMATION);
-            alert.setTitle("Catálogo Generado");
+            alert.setTitle("Catalogo Generado");
             alert.setHeaderText(null);
-            alert.setContentText("Se generaron " + productos.size() + " productos en el catálogo visual");
+            alert.setContentText("Se generaron " + productos.size() + " productos en el catalogo visual");
             alert.showAndWait();
 
         } catch (Exception e) {
-            mostrarAlerta("Error", "No se pudo generar el catálogo visual: " + e.getMessage());
+            mostrarAlerta("Error", "No se pudo generar el catalogo visual: " + e.getMessage());
         }
     }
 
@@ -832,7 +1183,7 @@ public class ControladorDashboard implements Initializable {
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Catálogo de Productos - Impulsa360</title>
+            <title>Catalogo de Productos - Impulsa360</title>
             <style>
                 body {
                     font-family: 'Arial', sans-serif;
@@ -1042,7 +1393,7 @@ public class ControladorDashboard implements Initializable {
         <body>
             <div class="container">
                 <div class="header">
-                    <h1>🛍️ Catálogo de Productos</h1>
+                    <h1>🛍️ Catalogo de Productos</h1>
                     <p>Impulsa360 - Emprendimientos Sociales</p>
         """);
 
@@ -1088,7 +1439,7 @@ public class ControladorDashboard implements Initializable {
             java.nio.file.Files.write(file.toPath(), html.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
         } catch (Exception e) {
-            throw new RuntimeException("Error creando HTML del catálogo: " + e.getMessage(), e);
+            throw new RuntimeException("Error creando HTML del catalogo: " + e.getMessage(), e);
         }
     }
 
@@ -1265,9 +1616,9 @@ public class ControladorDashboard implements Initializable {
 
             Clipboard.getSystemClipboard().setContent(content);
 
-            mostrarAlerta("Éxito", "✅ Producto copiado al portapapeles:\n" + producto.getNombre()
+            mostrarAlerta("Exito", "✅ Producto copiado al portapapeles:\n" + producto.getNombre()
                     + "\n\n📋 Texto: " + textoProducto
-                    + "\n🖼️ Imagen: " + (imageView.getImage() != null ? "Sí" : "No"));
+                    + "\n🖼️ Imagen: " + (imageView.getImage() != null ? "Si" : "No"));
 
         } catch (Exception e) {
             mostrarAlerta("Error", "No se pudo copiar el producto: " + e.getMessage());
@@ -1307,7 +1658,7 @@ public class ControladorDashboard implements Initializable {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Seleccionar imagen para: " + producto.getNombre());
         fileChooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("Imágenes", "*.png", "*.jpg", "*.jpeg", "*.gif"),
+                new FileChooser.ExtensionFilter("Imagenes", "*.png", "*.jpg", "*.jpeg", "*.gif"),
                 new FileChooser.ExtensionFilter("Todos los archivos", "*.*")
         );
 
@@ -1321,7 +1672,7 @@ public class ControladorDashboard implements Initializable {
                 if (exito) {
                     generarCatalogoVisual();
 
-                    mostrarAlerta("Éxito", "Imagen actualizada correctamente para: " + producto.getNombre());
+                    mostrarAlerta("Exito", "Imagen actualizada correctamente para: " + producto.getNombre());
                 } else {
                     mostrarAlerta("Error", "No se pudo guardar la imagen en la base de datos");
                 }
@@ -1337,7 +1688,7 @@ public class ControladorDashboard implements Initializable {
             VBox contenedorTemporal = new VBox(20);
             contenedorTemporal.setStyle("-fx-padding: 20; -fx-background-color: white;");
 
-            Label titulo = new Label("CATÁLOGO DE PRODUCTOS - IMPULSA360");
+            Label titulo = new Label("CATALOGO DE PRODUCTOS - IMPULSA360");
             titulo.setStyle("-fx-font-weight: bold; -fx-font-size: 24; -fx-text-fill: #2c3e50;");
             contenedorTemporal.getChildren().add(titulo);
 
@@ -1361,7 +1712,7 @@ public class ControladorDashboard implements Initializable {
             );
 
         } catch (Exception e) {
-            throw new RuntimeException("Error creando imagen del catálogo: " + e.getMessage(), e);
+            throw new RuntimeException("Error creando imagen del catalogo: " + e.getMessage(), e);
         }
     }
 
@@ -1398,55 +1749,6 @@ public class ControladorDashboard implements Initializable {
     }
 
     @FXML
-    private void mostrarCatalogoWhatsApp() {
-        try {
-            if (areaCatalogo.getText() == null || areaCatalogo.getText().trim().isEmpty()) {
-                generarCatalogo();
-            }
-
-            String catalogo = areaCatalogo.getText();
-
-            Alert alert = new Alert(Alert.AlertType.INFORMATION);
-            alert.setTitle("Catálogo para WhatsApp");
-            alert.setHeaderText("📱 Copia este texto y pégalo en WhatsApp");
-
-            TextArea textArea = new TextArea(catalogo);
-            textArea.setEditable(false);
-            textArea.setWrapText(true);
-            textArea.setPrefSize(500, 400);
-            textArea.setStyle("-fx-font-family: 'Arial'; -fx-font-size: 12;");
-
-            alert.getDialogPane().setContent(textArea);
-            alert.getDialogPane().setPrefSize(550, 450);
-
-            ButtonType copiarButton = new ButtonType("📋 Copiar");
-            ButtonType cerrarButton = new ButtonType("Cerrar", ButtonBar.ButtonData.CANCEL_CLOSE);
-            alert.getButtonTypes().setAll(copiarButton, cerrarButton);
-
-            java.util.Optional<ButtonType> result = alert.showAndWait();
-            if (result.isPresent() && result.get() == copiarButton) {
-                ClipboardContent content = new ClipboardContent();
-                content.putString(catalogo);
-                Clipboard.getSystemClipboard().setContent(content);
-
-                Alert confirmacion = new Alert(Alert.AlertType.INFORMATION);
-                confirmacion.setTitle("Éxito");
-                confirmacion.setHeaderText(null);
-                confirmacion.setContentText("✅ Catálogo copiado al portapapeles");
-                confirmacion.showAndWait();
-            }
-
-        } catch (Exception e) {
-
-            Alert errorAlert = new Alert(Alert.AlertType.ERROR);
-            errorAlert.setTitle("Error");
-            errorAlert.setHeaderText("No se pudo generar el catálogo");
-            errorAlert.setContentText("Intenta generar el catálogo primero en la pestaña 'Catálogo WhatsApp'");
-            errorAlert.showAndWait();
-        }
-    }
-
-    @FXML
     private void copiarCatalogoTextoSolo() {
         String catalogo = areaCatalogo.getText();
         if (catalogo != null && !catalogo.trim().isEmpty()) {
@@ -1455,178 +1757,12 @@ public class ControladorDashboard implements Initializable {
                 ClipboardContent content = new ClipboardContent();
                 content.putString(catalogo);
                 clipboard.setContent(content);
-                mostrarAlerta("Éxito", "✅ Catálogo de texto copiado al portapapeles\n\n¡Perfecto para WhatsApp!");
+                mostrarAlerta("Exito", "✅ Catalogo de texto copiado al portapapeles\n\n¡Perfecto para WhatsApp!");
             } catch (Exception e) {
                 mostrarAlerta("Error", "No se pudo copiar: " + e.getMessage());
             }
         } else {
-            mostrarAlerta("Error", "No hay catálogo para copiar. Genere el catálogo primero.");
-        }
-    }
-
-    private String extraerTextoDeTarjeta(VBox tarjeta) {
-        try {
-            StringBuilder texto = new StringBuilder();
-
-            for (javafx.scene.Node node : tarjeta.getChildren()) {
-                if (node instanceof Label) {
-                    Label label = (Label) node;
-                    if (!label.getText().contains("💰") && !label.getText().contains("📦") && !label.getText().contains("🏷️")) {
-                        texto.append(label.getText()).append(" ");
-                    }
-                }
-            }
-            return texto.toString().trim();
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private String crearHTMLProducto(VBox tarjeta, int numero) {
-        try {
-            StringBuilder productoHTML = new StringBuilder();
-            productoHTML.append("<div class=\"producto-card\">\n");
-
-            String nombre = "";
-            String precio = "";
-            String stock = "";
-            String categoria = "";
-            String descripcion = "";
-            String imagenBase64 = "";
-
-            for (javafx.scene.Node node : tarjeta.getChildren()) {
-                if (node instanceof Label) {
-                    Label label = (Label) node;
-                    String texto = label.getText();
-
-                    if (texto.contains("💰")) {
-                        precio = texto.replace("💰 Precio: ", "");
-                    } else if (texto.contains("📦")) {
-                        stock = texto.replace("📦 Stock: ", "");
-                    } else if (texto.contains("🏷️")) {
-                        categoria = texto.replace("🏷️ ", "");
-                    } else if (!texto.contains("💰") && !texto.contains("📦") && !texto.contains("🏷️")) {
-                        nombre = texto;
-                    }
-                } else if (node instanceof TextArea) {
-                    TextArea textArea = (TextArea) node;
-                    descripcion = textArea.getText();
-                } else if (node instanceof ImageView) {
-                    ImageView imageView = (ImageView) node;
-                    javafx.scene.image.Image imagenFX = imageView.getImage();
-
-                    if (imagenFX != null) {
-                        try {
-                            java.awt.image.BufferedImage bufferedImage = SwingFXUtils.fromFXImage(imagenFX, null);
-                            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-                            javax.imageio.ImageIO.write(bufferedImage, "png", baos);
-                            byte[] imageBytes = baos.toByteArray();
-                            imagenBase64 = java.util.Base64.getEncoder().encodeToString(imageBytes);
-                        } catch (Exception e) {
-                            System.err.println("Error procesando imagen para HTML: " + e.getMessage());
-                        }
-                    }
-                }
-            }
-            productoHTML.append("<div class=\"estado-activo\">✅ DISPONIBLE</div>\n");
-            if (!imagenBase64.isEmpty()) {
-                productoHTML.append("<div class=\"producto-imagen-container\">\n");
-                productoHTML.append("<img src=\"data:image/png;base64,")
-                        .append(imagenBase64)
-                        .append("\" class=\"producto-imagen\" alt=\"")
-                        .append(escapeHTML(nombre))
-                        .append("\">\n");
-                productoHTML.append("</div>\n");
-            } else {
-                productoHTML.append("<div class=\"producto-imagen-container\">\n");
-                productoHTML.append("<div class=\"producto-imagen-placeholder\">🛒 Producto<br>").append(escapeHTML(nombre)).append("</div>\n");
-                productoHTML.append("</div>\n");
-            }
-
-            productoHTML.append("<div class=\"producto-nombre\">")
-                    .append(numero).append(". ").append(escapeHTML(nombre))
-                    .append("</div>\n");
-
-            if (!categoria.isEmpty()) {
-                productoHTML.append("<div class=\"producto-categoria\">🏷️ ").append(escapeHTML(categoria)).append("</div>\n");
-            }
-
-            if (!precio.isEmpty()) {
-                productoHTML.append("<div class=\"producto-precio\">💰 ").append(escapeHTML(precio)).append("</div>\n");
-            }
-
-            if (!stock.isEmpty()) {
-                productoHTML.append("<div class=\"producto-stock\">📦 ").append(escapeHTML(stock)).append("</div>\n");
-            }
-
-            if (!descripcion.isEmpty()) {
-                productoHTML.append("<div class=\"producto-descripcion\">📝 ").append(escapeHTML(descripcion)).append("</div>\n");
-            }
-            productoHTML.append("<div class=\"botones-container\">\n");
-
-            String telefono = usuarioLogueado.getTelefono();
-
-            if (telefono == null || telefono.trim().isEmpty()) {
-                productoHTML.append("<div class=\"botones-container\">\n");
-                productoHTML.append("<button class=\"boton-whatsapp\" disabled style=\"background: #6c757d; cursor: not-allowed;\">")
-                        .append("⚠️ Configura tu WhatsApp")
-                        .append("</button>\n");
-                productoHTML.append("</div>\n");
-            } else {
-                String numeroWhatsApp = telefono.replaceAll("[^0-9]", "");
-                String mensajeWhatsApp = "Hola! Estoy interesado en el producto: " + escapeHTML(nombre) + " - Precio: " + escapeHTML(precio);
-                String enlaceWhatsApp = "https://wa.me/" + numeroWhatsApp + "?text="
-                        + java.net.URLEncoder.encode(mensajeWhatsApp, "UTF-8");
-
-                productoHTML.append("<a href=\"").append(enlaceWhatsApp)
-                        .append("\" target=\"_blank\" class=\"boton-whatsapp\" title=\"Consultar por WhatsApp sobre: ")
-                        .append(escapeHTML(nombre))
-                        .append("\">")
-                        .append("💬 Consultar")
-                        .append("</a>\n");
-            }
-
-            productoHTML.append("</div>\n");
-            productoHTML.append("</div>\n");
-
-            return productoHTML.toString();
-
-        } catch (Exception e) {
-            System.err.println("❌ Error creando HTML para producto " + numero + ": " + e.getMessage());
-            return "<div class=\"producto-card\">Producto " + numero + " - Error al procesar</div>\n";
-        }
-    }
-
-    private String crearBotonWhatsApp(String nombreProducto, String precioProducto, int numeroProducto) {
-        try {
-            String telefono = usuarioLogueado.getTelefono();
-            if (telefono == null || telefono.trim().isEmpty()) {
-                return "<div style=\"text-align:center; margin-top:10px; color:#dc3545; font-size:12px;\">"
-                        + "⚠️ Número de WhatsApp no configurado</div>";
-            }
-            String numeroLimpio = telefono.replaceAll("[^0-9]", "");
-
-            String mensaje = "¡Hola! Estoy interesado en comprar el producto: " + nombreProducto
-                    + " (Producto #" + numeroProducto + "). "
-                    + "Precio: " + precioProducto + ". "
-                    + "¿Podrías ayudarme con mi compra?";
-
-            String mensajeCodificado = java.net.URLEncoder.encode(mensaje, "UTF-8");
-
-            StringBuilder boton = new StringBuilder();
-            boton.append("<div style=\"text-align:center; margin-top:15px;\">");
-            boton.append("<a href=\"https://wa.me/").append(numeroLimpio)
-                    .append("?text=").append(mensajeCodificado)
-                    .append("\" target=\"_blank\" class=\"boton-whatsapp\">");
-            boton.append("💬 Consultar por WhatsApp");
-            boton.append("</a>");
-            boton.append("</div>");
-
-            return boton.toString();
-
-        } catch (Exception e) {
-            System.err.println("❌ Error creando botón WhatsApp: " + e.getMessage());
-            return "<div style=\"text-align:center; margin-top:10px; color:#dc3545;\">Error en botón WhatsApp</div>";
+            mostrarAlerta("Error", "No hay catalogo para copiar. Genere el catalogo primero.");
         }
     }
 
@@ -1645,31 +1781,78 @@ public class ControladorDashboard implements Initializable {
     private File exportarCatalogoHTML() {
         try {
             if (contenedorCatalogoVisual.getChildren().isEmpty()) {
-                mostrarAlerta("Error", "Primero genera el catálogo visual");
+                mostrarAlerta("Error", "Primero genera el catalogo visual");
                 return null;
             }
-            File carpetaWeb = new File(System.getProperty("user.home") + "/Desktop/catalogo_productos_web");
-            File carpetaImagenes = new File(carpetaWeb, "imagenes_productos");
+
+            // Usar DirectoryChooser para seleccionar carpeta
+            DirectoryChooser directoryChooser = new DirectoryChooser();
+            directoryChooser.setTitle("Seleccionar carpeta destino para el catálogo web");
+            directoryChooser.setInitialDirectory(new File(System.getProperty("user.home")));
+
+            File carpetaDestino = directoryChooser.showDialog(null);
+
+            if (carpetaDestino == null) {
+                return null; 
+            }
+
+            File carpetaCatalogo = new File(carpetaDestino, "catalogo_productos_web");
+
+            if (carpetaCatalogo.exists()) {
+                Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+                alert.setTitle("Catálogo existente");
+                alert.setHeaderText("Ya existe un catálogo en esta ubicación");
+                alert.setContentText("¿Deseas reemplazar el catálogo existente?\n\n"
+                        + "Ubicación: " + carpetaCatalogo.getAbsolutePath());
+
+                Optional<ButtonType> result = alert.showAndWait();
+                if (result.isEmpty() || result.get() != ButtonType.OK) {
+                    return null; // Usuario no quiere reemplazar
+                }
+
+                eliminarCarpetaRecursivamente(carpetaCatalogo);
+            }
+
+            carpetaCatalogo.mkdirs();
+            File carpetaImagenes = new File(carpetaCatalogo, "imagenes_productos");
             carpetaImagenes.mkdirs();
 
-            System.out.println("=== INICIANDO EXPORTACIÓN ===");
             int totalImagenes = copiarImagenesDeProductos(carpetaImagenes);
-            System.out.println("Imágenes procesadas: " + totalImagenes);
-
-            File htmlFile = new File(carpetaWeb, "index.html");
+            File htmlFile = new File(carpetaCatalogo, "index.html");
             crearHTMLDelCatalogo(htmlFile);
 
-            mostrarAlerta("Éxito", "📁 Carpeta 'catalogo_productos_web' generada con:\n"
-                    + "• index.html\n"
-                    + "• imagenes/ (con " + totalImagenes + " imágenes)\n\n"
-                    + "¡Las imágenes " + (totalImagenes > 0 ? "SÍ" : "NO") + " se copiaron!");
+            mostrarAlerta("Catalogo web generado",
+                    "Catalogo web " + (carpetaCatalogo.exists() ? "actualizado" : "exportado") + " exitosamente!\n\n"
+                    + "📍 Ubicación: " + carpetaCatalogo.getAbsolutePath() + "\n"
+                    + "📄 Archivo: index.html\n"
+                    + "🖼️ Imágenes: " + totalImagenes + " procesadas\n\n"
+                    + "Abre index.html en tu navegador para ver el catálogo."
+            );
 
-            return carpetaWeb;
+            try {
+                java.awt.Desktop.getDesktop().open(carpetaCatalogo);
+            } catch (Exception e) {
+            }
+
+            return carpetaCatalogo;
+
         } catch (Exception e) {
-            mostrarAlerta("Error", "No se pudo exportar el catálogo: " + e.getMessage());
+            mostrarAlerta("Error", "No se pudo exportar el catalogo: " + e.getMessage());
             e.printStackTrace();
             return null;
         }
+    }
+
+    private void eliminarCarpetaRecursivamente(File carpeta) {
+        if (carpeta.isDirectory()) {
+            File[] archivos = carpeta.listFiles();
+            if (archivos != null) {
+                for (File archivo : archivos) {
+                    eliminarCarpetaRecursivamente(archivo);
+                }
+            }
+        }
+        carpeta.delete();
     }
 
     private int copiarImagenesDeProductos(File carpetaImagenes) {
@@ -1677,9 +1860,6 @@ public class ControladorDashboard implements Initializable {
         int imagenesCopiadas = 0;
 
         try {
-            System.out.println("=== COPIANDO IMÁGENES ===");
-            System.out.println("Carpeta destino: " + carpetaImagenes.getAbsolutePath());
-
             for (javafx.scene.Node node : contenedorCatalogoVisual.getChildren()) {
                 if (node instanceof GridPane) {
                     GridPane grid = (GridPane) node;
@@ -1687,9 +1867,6 @@ public class ControladorDashboard implements Initializable {
                         if (child instanceof VBox) {
                             VBox tarjeta = (VBox) child;
                             ImageView imageView = obtenerImageViewDeTarjeta(tarjeta);
-
-                            System.out.println("Procesando producto " + numero + " - ImageView: " + (imageView != null));
-                            System.out.println("Tiene imagen: " + (imageView != null && imageView.getImage() != null));
 
                             if (imageView != null && imageView.getImage() != null) {
                                 try {
@@ -1710,23 +1887,19 @@ public class ControladorDashboard implements Initializable {
                                     File imagenDestino = new File(carpetaImagenes, "producto" + numero + ".jpg");
                                     javax.imageio.ImageIO.write(nuevaImagen, "jpg", imagenDestino);
 
-                                    System.out.println("✅ Imagen guardada: " + imagenDestino.getName());
                                     imagenesCopiadas++;
 
                                 } catch (Exception e) {
-                                    System.err.println("❌ Error copiando imagen producto " + numero + ": " + e.getMessage());
+                                    System.err.println("Error copiando imagen producto " + numero + ": " + e.getMessage());
                                     try {
                                         java.awt.image.BufferedImage bufferedImage = SwingFXUtils.fromFXImage(imageView.getImage(), null);
                                         File imagenDestino = new File(carpetaImagenes, "producto" + numero + ".jpg");
                                         javax.imageio.ImageIO.write(bufferedImage, "jpg", imagenDestino);
                                         imagenesCopiadas++;
-                                        System.out.println("✅ Imagen guardada (fallback): " + imagenDestino.getName());
                                     } catch (Exception ex) {
-                                        System.err.println("❌ Fallback también falló: " + ex.getMessage());
+                                        System.err.println("error " + ex.getMessage());
                                     }
                                 }
-                            } else {
-                                System.out.println("❌ Producto " + numero + " no tiene imagen");
                             }
                             numero++;
                         }
@@ -1734,10 +1907,8 @@ public class ControladorDashboard implements Initializable {
                 }
             }
 
-            System.out.println("=== TOTAL IMÁGENES COPIADAS: " + imagenesCopiadas + " ===");
-
         } catch (Exception e) {
-            System.err.println("❌ Error general procesando tarjetas: " + e.getMessage());
+            System.err.println("Error procesando tarjetas: " + e.getMessage());
         }
 
         return imagenesCopiadas;
@@ -1749,10 +1920,10 @@ public class ControladorDashboard implements Initializable {
             productoHTML.append("<div class=\"producto-card\">\n");
 
             String nombreProducto = "Producto";
-            String categoria = "Categoría";
+            String categoria = "Categoria";
             String precio = "$0";
             String stock = "0 unidades";
-            String descripcion = "Descripción";
+            String descripcion = "Descripcion";
             String rutaImagen = null;
 
             for (javafx.scene.Node node : tarjetaProducto.getChildren()) {
@@ -1848,25 +2019,18 @@ public class ControladorDashboard implements Initializable {
 
     private ImageView obtenerImageViewDeTarjeta(VBox tarjeta) {
         try {
-            System.out.println("=== BUSCANDO IMAGEVIEW ===");
-            System.out.println("Número de hijos en tarjeta: " + tarjeta.getChildren().size());
-
             int contador = 0;
             for (javafx.scene.Node node : tarjeta.getChildren()) {
-                System.out.println("Hijo " + contador + ": " + node.getClass().getSimpleName());
                 if (node instanceof ImageView) {
                     ImageView imageView = (ImageView) node;
-                    System.out.println("✅ ImageView encontrado - Imagen: " + (imageView.getImage() != null));
                     return imageView;
                 }
                 contador++;
             }
-
-            System.out.println("❌ No se encontró ImageView en la tarjeta");
             return null;
 
         } catch (Exception e) {
-            System.err.println("❌ Error obteniendo ImageView: " + e.getMessage());
+            System.err.println("Error obteniendo ImageView: " + e.getMessage());
             return null;
         }
     }
@@ -1885,22 +2049,20 @@ public class ControladorDashboard implements Initializable {
             if (!carpetaCatalogo.exists()) {
                 boolean creada = carpetaCatalogo.mkdirs();
                 if (creada) {
-                    System.out.println("✅ Carpeta creada automáticamente: " + carpetaCatalogo.getAbsolutePath());
-
                     File carpetaImagenes = new File(carpetaCatalogo, "imagenes_productos");
                     carpetaImagenes.mkdirs();
 
                     mostrarAlerta("Carpeta Creada",
-                            "📁 Se creó automáticamente la carpeta 'catalogo_productos_web' en el Escritorio\n"
+                            "📁 Se creo automaticamente la carpeta 'catalogo_productos_web' en el Escritorio\n"
                             + "🔄 Procediendo con el despliegue a GitHub Pages...");
                 } else {
-                    mostrarAlerta("Error", "❌ No se pudo crear la carpeta automáticamente");
+                    mostrarAlerta("Error", "No se pudo crear la carpeta automaticamente");
                     return;
                 }
             }
 
             if (contenedorCatalogoVisual.getChildren().isEmpty()) {
-                mostrarAlerta("Error", "Primero genera el catálogo visual desde la pestaña 'Catálogo Visual'");
+                mostrarAlerta("Error", "Primero genera el catalogo visual desde la pestaña 'Catalogo Visual'");
                 return;
             }
             File carpetaImagenes = new File(carpetaCatalogo, "imagenes_productos");
@@ -1913,26 +2075,131 @@ public class ControladorDashboard implements Initializable {
             gestorGit.desplegarAGitHubPagesAsync(
                     getClass(),
                     carpetaCatalogo,
-                    "Catálogo de Productos",
+                    "Catalogo de Productos",
                     () -> {
                         Platform.runLater(()
-                                -> mostrarAlerta("Éxito",
-                                "✅ Catálogo de productos desplegado en GitHub Pages\n\n"
-                                + "📍 La carpeta está en: " + carpetaCatalogo.getAbsolutePath())
+                                -> mostrarAlerta("Despliegue completado",
+                                "Catalogo de productos desplegado en github pages\n\n")
                         );
                     },
                     () -> {
                         Platform.runLater(()
                                 -> mostrarAlerta("Error",
-                                "❌ Falló el despliegue del catálogo de productos\n\n"
-                                + "📍 La carpeta está en: " + carpetaCatalogo.getAbsolutePath())
+                                "Fallo el despliegue del catalogo de productos\n\n")
                         );
                     }
             );
 
         } catch (Exception e) {
-            mostrarAlerta("Error", "❌ Error en el despliegue: " + e.getMessage());
+            mostrarAlerta("Error", "Error en el despliegue: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    @FXML
+    private void editarDatosUsuario() {
+        try {
+            Dialog<Map<String, String>> dialog = new Dialog<>();
+            dialog.setTitle("Editar mis datos");
+            dialog.setHeaderText("Actualiza tu informacion");
+
+            ButtonType btnGuardar = new ButtonType("Guardar", ButtonBar.ButtonData.OK_DONE);
+            ButtonType btnCancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+            dialog.getDialogPane().getButtonTypes().addAll(btnGuardar, btnCancelar);
+
+            GridPane grid = new GridPane();
+            grid.setHgap(10);
+            grid.setVgap(10);
+            grid.setPadding(new Insets(20, 150, 10, 10));
+
+            TextField txtNombre = new TextField();
+            txtNombre.setPromptText("Nombre completo");
+            txtNombre.setText(usuarioLogueado.getNombreCompleto());
+            txtNombre.setPrefWidth(250);
+
+            TextField txtTelefono = new TextField();
+            txtTelefono.setPromptText("Numero de WhatsApp");
+            txtTelefono.setText(usuarioLogueado.getTelefono() != null ? usuarioLogueado.getTelefono() : "");
+            txtTelefono.setPrefWidth(250);
+
+            Label infoLabel = new Label("💡 Este numero se usara para que los clientes te contacten por WhatsApp");
+            infoLabel.setStyle("-fx-text-fill: #666; -fx-font-size: 10px;");
+            infoLabel.setWrapText(true);
+
+            grid.add(new Label("Nombre:"), 0, 0);
+            grid.add(txtNombre, 1, 0);
+            grid.add(new Label("WhatsApp:"), 0, 1);
+            grid.add(txtTelefono, 1, 1);
+            grid.add(infoLabel, 0, 2, 2, 1);
+
+            dialog.getDialogPane().setContent(grid);
+            dialog.getDialogPane().setPrefSize(500, 200);
+
+            Platform.runLater(txtNombre::requestFocus);
+
+            dialog.setResultConverter(dialogButton -> {
+                if (dialogButton == btnGuardar) {
+                    Map<String, String> resultado = new java.util.HashMap<>();
+                    resultado.put("nombre", txtNombre.getText().trim());
+                    resultado.put("telefono", txtTelefono.getText().trim());
+                    return resultado;
+                }
+                return null;
+            });
+
+            Optional<Map<String, String>> resultado = dialog.showAndWait();
+
+            if (resultado.isPresent()) {
+                Map<String, String> datos = resultado.get();
+                String nuevoNombre = datos.get("nombre");
+                String nuevoTelefono = datos.get("telefono");
+
+                if (nuevoNombre.isEmpty()) {
+                    mostrarAlerta("Error", "El nombre no puede estar vacio");
+                    return;
+                }
+
+                if (nuevoTelefono != null && !nuevoTelefono.isEmpty() && !validarTelefono(nuevoTelefono)) {
+                    mostrarAlerta("Error", "Formato de telefono invalido. Use solo numeros");
+                    return;
+                }
+
+                boolean exito = ControladorBD.actualizarDatosUsuario(
+                        usuarioLogueado.getId(),
+                        nuevoNombre,
+                        nuevoTelefono
+                );
+
+                if (exito) {
+                    Usuario usuarioActualizado = ControladorBD.obtenerUsuarioPorId(usuarioLogueado.getId());
+                    if (usuarioActualizado != null) {
+                        usuarioLogueado.setNombreCompleto(usuarioActualizado.getNombreCompleto());
+                        usuarioLogueado.setTelefono(usuarioActualizado.getTelefono());
+                    } else {
+                        usuarioLogueado.setNombreCompleto(nuevoNombre);
+                        usuarioLogueado.setTelefono(nuevoTelefono);
+                    }
+
+                    lblUsuario.setText(usuarioLogueado.getNombreCompleto() + " (" + usuarioLogueado.getTipoUsuario() + ")");
+
+                    mostrarAlerta("exito",
+                            "Datos actualizados correctamente\n\n"
+                            + "Nombre: " + usuarioLogueado.getNombreCompleto() + "\n"
+                            + "WhatsApp: " + (usuarioLogueado.getTelefono() == null || usuarioLogueado.getTelefono().isEmpty()
+                            ? "No configurado" : usuarioLogueado.getTelefono())
+                    );
+                } else {
+                    mostrarAlerta("Error", "No se pudieron actualizar los datos");
+                }
+            }
+
+        } catch (Exception e) {
+            mostrarAlerta("Error", "Error al editar datos: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private boolean validarTelefono(String telefono) {
+        return telefono.matches("^[0-9+\\s\\-\\(\\)]{10,20}$");
     }
 }

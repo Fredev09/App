@@ -30,8 +30,8 @@
                 <Label styleClass="header-title" text="🏫 Impulsa360" />
                 <Label fx:id="lblUsuario" styleClass="header-subtitle" />
                 <Region HBox.hgrow="ALWAYS" />
+                <ToggleButton onAction="#editarDatosUsuario" styleClass="btn-secondary" stylesheets="@styles.css" text="👤 Editar Datos" />
                 <Button onAction="#cerrarSesion" styleClass="btn-logout" text="Cerrar Sesión" />
-                <ToggleButton fx:id="btnTema" layoutX="10" layoutY="10" styleClass="switch-tema" text="🌙" />
             </HBox>
             <Separator />
         </VBox>
@@ -131,7 +131,7 @@
             </Tab>
             
             <!-- Las otras pestañas se mantienen igual -->
-            <Tab text="📱 Catálogo Cursos WhatsApp">
+            <Tab text="📱 Catalogo Cursos WhatsApp">
                 <VBox spacing="15" style="-fx-padding: 20;" VBox.vgrow="ALWAYS">
                     <Label style="-fx-font-weight: bold; -fx-font-size: 16;" text="GENERA TU CATÁLOGO DE CURSOS PARA WHATSAPP" />
                     <TextArea fx:id="areaCatalogoCursos" editable="false" styleClass="catalog-textarea" VBox.vgrow="ALWAYS" />
@@ -144,7 +144,7 @@
             </Tab>
             
             <!-- Pestaña: Catálogo Visual de Cursos -->
-            <Tab text="📋 Catálogo Visual Cursos">
+            <Tab text="📋 Catalogo Visual Cursos">
                 <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS">
                     <VBox spacing="15" style="-fx-padding: 20;">
                         <Label style="-fx-font-weight: bold; -fx-font-size: 18;" text="CATÁLOGO VISUAL DE CURSOS" />
@@ -235,14 +235,15 @@
                         <VBox spacing="5">
                             <Label style="-fx-font-weight: bold; -fx-text-fill: #2c3e50;" text="Acciones de Inscripción:" />
                             <HBox spacing="10">
-                                <Button onAction="#cargarInscripciones" styleClass="btn-primary" text="🔄 Actualizar Inscripciones" />
-                                <Button onAction="#cambiarEstadoInscripcion" prefHeight="36.0" prefWidth="194.0" styleClass="btn-warning" text="✏ Cambiar Estado" />
+                                <Button onAction="#cargarInscripciones" styleClass="btn-primary" text="🔄 Actualizar" />
+                                <Button onAction="#cambiarEstadoInscripcion" styleClass="btn-warning" text="✏ Estado" />
+                                <Button onAction="#eliminarInscripcionSeleccionada" styleClass="btn-danger" text="🗑 Eliminar" />
                                 <Button onAction="#exportarInscripcionesCSV" styleClass="btn-success" text="📤 Exportar" />
                             </HBox>
                         </VBox>
-            
+
                         <Region HBox.hgrow="ALWAYS" />
-            
+
                         <VBox spacing="5">
                             <Label style="-fx-font-weight: bold; -fx-text-fill: #2c3e50;" text="Configuración:" />
                             <HBox spacing="10">

@@ -174,7 +174,6 @@ public class ControladorRegistro {
                     "No se pudo crear la cuenta. Intente nuevamente.",
                     Alert.AlertType.ERROR);
         }
-        irLogin();
     }
 
     private void mostrarAlerta(String titulo, String mensaje, Alert.AlertType tipo) {
